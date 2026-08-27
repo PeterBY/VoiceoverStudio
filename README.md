@@ -50,6 +50,11 @@ Windows installer).
 
 ## Configuration
 
+Subtitle translation needs access to an AI model through an **OpenAI-compatible API**. Any provider
+works: a commercial API, a self-hosted server (Ollama, LM Studio, llama.cpp, vLLM), or a free tier —
+see e.g. [freellm.net](https://freellm.net/) for a catalog of free LLM APIs and keys. No AI access
+is needed for the external-subtitles mode (feeding an already translated `.srt`).
+
 ⚙ Settings in the app: AI API host, key and model (any OpenAI-compatible server — both
 `/v1/responses` and `/v1/chat/completions` are supported, auto-detected), plus the translation
 prompt. Stored per-user: `~/.config/voiceover-studio/settings.json` (Linux),
