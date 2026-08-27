@@ -89,9 +89,11 @@ verify no `--enable-gpl` and fail otherwise). App is MIT; a GPL ffmpeg would dra
 under GPL. LGPL covers the entire pipeline: video is stream-copied, ac3/pcm encoders and all used
 audio filters are core LGPL avfilter/avcodec.
 
+**License stance (settled by owner):** source = MIT; prebuilt release bundles are labeled as
+distributed under **GPL-3.0 terms** because GPL-3.0 edge-tts is frozen into the executables —
+deliberate choice, no subprocess isolation. README/THIRD_PARTY state this; repeat it in release
+notes when publishing binaries.
+
 ## Publishing TODO
 
 - [ ] GitHub Actions release workflow: tag `v*` → Linux (ubuntu-22.04) + Windows builds → Release assets
-- [ ] Owner decision pending: edge-tts is GPL-3.0 and is IMPORTED (frozen into the bundle, unlike
-  subprocess-ffmpeg) — either label release bundles as GPL-3.0-covered, or isolate edge-tts behind a
-  separate subprocess executable like ffmpeg. Source repo itself stays MIT either way.

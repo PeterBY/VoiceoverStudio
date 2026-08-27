@@ -23,3 +23,7 @@ Do not replace them with GPL builds: that would place the distributed bundle und
 
 Release bundles are produced with PyInstaller (GPL 2.0 with a bootloader exception that does not
 affect the licensing of the produced bundle).
+
+**Note:** edge-tts (GPL-3.0) is frozen into the release executables, so the prebuilt release
+bundles as a whole are distributed under GPL-3.0 terms. The Voiceover Studio source code itself
+remains MIT-licensed.

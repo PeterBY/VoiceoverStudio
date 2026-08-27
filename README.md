@@ -65,9 +65,12 @@ prompt. Stored per-user: `~/.config/voiceover-studio/settings.json` (Linux),
 
 ## License
 
-The Voiceover Studio source code is licensed under the [MIT License](LICENSE).
+The Voiceover Studio **source code** is licensed under the [MIT License](LICENSE).
 
-Release bundles additionally contain third-party components under their own licenses — notably
-**LGPL builds of ffmpeg/ffprobe/ffplay** ([BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds)),
-which are invoked as separate processes, never linked. GPL ffmpeg builds must not be bundled.
-See [THIRD_PARTY.md](THIRD_PARTY.md) for the full list.
+The **prebuilt release bundles** additionally contain third-party components:
+
+- **LGPL builds** of ffmpeg/ffprobe/ffplay ([BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds)),
+  invoked as separate processes, never linked (GPL ffmpeg builds must not be bundled);
+- the **edge-tts** library (GPL-3.0), frozen into the executables — therefore the prebuilt bundles
+  as a whole are distributed under **GPL-3.0 terms**; the complete corresponding source is this
+  repository plus the upstream projects listed in [THIRD_PARTY.md](THIRD_PARTY.md).
