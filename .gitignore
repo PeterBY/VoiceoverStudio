@@ -1,0 +1,11 @@
+.env
+.venv/
+.venv-*/
+work/
+__pycache__/
+*.pyc
+third_party/
+dist/
+build/
+*.spec.bak
+NOTES.local.md
