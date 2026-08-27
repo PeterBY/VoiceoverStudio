@@ -81,10 +81,17 @@ dist\VoiceoverStudio\VoiceoverStudio.exe     # + VoiceoverStudio-cli.exe
 
 Spec notes: resources land in `_internal/` (PyInstaller 6.x) — `ffbin.app_dir()` uses `sys._MEIPASS`
 when frozen; `PIL._tkinter_finder` stays in hiddenimports; ffplay is bundled when the fetch script
-provides it (voice Preview). Linux ffmpeg pinned 7.0.2 (johnvansickle), Windows 9.0.1 essentials (gyan).
+provides it (voice Preview — BtbN ships it on both platforms).
 Build Linux releases on the oldest available runner/distro (glibc floor).
 
-## Publishing TODO (before the repo goes public)
+**ffmpeg licensing (hard rule):** bundle ONLY **LGPL** builds (BtbN `*-lgpl` assets; fetch scripts
+verify no `--enable-gpl` and fail otherwise). App is MIT; a GPL ffmpeg would drag the whole bundle
+under GPL. LGPL covers the entire pipeline: video is stream-copied, ac3/pcm encoders and all used
+audio filters are core LGPL avfilter/avcodec.
 
-- [ ] README.md, LICENSE (owner's choice), THIRD_PARTY.md (bundled ffmpeg is GPL — link build sources)
+## Publishing TODO
+
 - [ ] GitHub Actions release workflow: tag `v*` → Linux (ubuntu-22.04) + Windows builds → Release assets
+- [ ] Owner decision pending: edge-tts is GPL-3.0 and is IMPORTED (frozen into the bundle, unlike
+  subprocess-ffmpeg) — either label release bundles as GPL-3.0-covered, or isolate edge-tts behind a
+  separate subprocess executable like ffmpeg. Source repo itself stays MIT either way.
