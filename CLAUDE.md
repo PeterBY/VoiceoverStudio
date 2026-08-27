@@ -94,6 +94,9 @@ distributed under **GPL-3.0 terms** because GPL-3.0 edge-tts is frozen into the 
 deliberate choice, no subprocess isolation. README/THIRD_PARTY state this; repeat it in release
 notes when publishing binaries.
 
-## Publishing TODO
+## Releases
 
-- [ ] GitHub Actions release workflow: tag `v*` → Linux (ubuntu-22.04) + Windows builds → Release assets
+GitHub Actions (`.github/workflows/release.yml`): push tag `v*` → parallel Linux (ubuntu-22.04) +
+Windows builds (version-equals-tag check, LGPL ffmpeg fetch, PyInstaller, GUI+CLI smoke) → `release`
+job attaches both archives to the GitHub Release with the license note. `workflow_dispatch` runs
+builds only (artifacts, no release) — use it to validate CI changes. Verified green 2026-08-27.
