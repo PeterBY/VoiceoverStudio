@@ -1,0 +1,109 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04   # oldest runner = lowest glibc floor for the binary
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: System deps (tk runtime, xvfb for GUI smoke)
+        run: sudo apt-get update && sudo apt-get install -y libtcl8.6 libtk8.6 xvfb
+      - name: Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy edge-tts httpx ttkbootstrap pyinstaller
+          python -c "import tkinter; print('tkinter', tkinter.TkVersion)"
+      - name: Version (must equal tag)
+        id: ver
+        run: |
+          VERSION=$(python -c "import voiceover_studio; print(voiceover_studio.__version__)")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME != __version__ $VERSION"; exit 1
+          fi
+      - name: Fetch ffmpeg (LGPL)
+        run: bash packaging/fetch_ffmpeg.sh
+      - name: Build
+        run: pyinstaller packaging/voiceover_studio.spec --noconfirm
+      - name: Smoke test
+        run: |
+          dist/VoiceoverStudio/voiceover-studio-cli --version
+          VOS_SMOKE=1 xvfb-run -a dist/VoiceoverStudio/voiceover-studio
+      - name: Archive
+        run: tar -C dist -czf "VoiceoverStudio-v${{ steps.ver.outputs.version }}-linux-x86_64.tar.gz" VoiceoverStudio
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64
+          path: VoiceoverStudio-v*-linux-x86_64.tar.gz
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy edge-tts httpx ttkbootstrap pyinstaller
+      - name: Version (must equal tag)
+        id: ver
+        shell: pwsh
+        run: |
+          $v = python -c "import voiceover_studio; print(voiceover_studio.__version__)"
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          if ($env:GITHUB_REF_TYPE -eq "tag" -and "v$v" -ne $env:GITHUB_REF_NAME) {
+            throw "tag $env:GITHUB_REF_NAME != __version__ $v"
+          }
+      - name: Fetch ffmpeg (LGPL)
+        shell: pwsh
+        run: packaging/fetch_ffmpeg.ps1
+      - name: Build
+        run: pyinstaller packaging/voiceover_studio.spec --noconfirm
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          dist\VoiceoverStudio\VoiceoverStudio-cli.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "CLI smoke failed" }
+          $env:VOS_SMOKE = "1"
+          $p = Start-Process -FilePath "dist\VoiceoverStudio\VoiceoverStudio.exe" -PassThru
+          $null = $p.Handle  # required so ExitCode is readable after exit
+          if (-not $p.WaitForExit(90000)) { $p.Kill(); throw "GUI smoke timed out" }
+          if ($p.ExitCode -ne 0) { throw "GUI smoke exit code $($p.ExitCode)" }
+      - name: Archive
+        shell: pwsh
+        run: Compress-Archive -Path dist\VoiceoverStudio -DestinationPath "VoiceoverStudio-v${{ steps.ver.outputs.version }}-windows-x64.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: VoiceoverStudio-v*-windows-x64.zip
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            VoiceoverStudio-v*-linux-x86_64.tar.gz
+            VoiceoverStudio-v*-windows-x64.zip
+          generate_release_notes: true
+          body: |
+            Prebuilt bundles include LGPL ffmpeg (separate processes) and the GPL-3.0 edge-tts
+            library frozen into the executables, so the bundles as a whole are distributed under
+            GPL-3.0 terms; the Voiceover Studio source code is MIT. See THIRD_PARTY.md.
