@@ -3,7 +3,7 @@ connection test. Saved to the per-user settings.json. (.env overrides
 at runtime — dev/testing only.)"""
 import threading
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import filedialog, messagebox
 
 import httpx
 import ttkbootstrap as tb
@@ -43,16 +43,23 @@ class SettingsDialog(tb.Toplevel):
         self.style_cb.set(cfg.get("api_style", "auto"))
         self.style_cb.grid(row=3, column=1, sticky="w", **pad)
 
+        tb.Label(frm, text="Work folder:").grid(row=4, column=0, sticky="w", **pad)
+        self.vars["work_dir"] = tb.StringVar(value=str(cfg.get("work_dir", "")))
+        tb.Entry(frm, textvariable=self.vars["work_dir"], width=48).grid(
+            row=4, column=1, sticky="we", **pad)
+        tb.Button(frm, text="…", width=3, command=self._pick_work_dir,
+                  bootstyle="secondary-outline").grid(row=4, column=2, **pad)
+
         tb.Label(frm, text="Translation prompt:").grid(
-            row=4, column=0, columnspan=2, sticky="w", **pad)
+            row=5, column=0, columnspan=2, sticky="w", **pad)
         self.prompt = tk.Text(frm, height=12, wrap="word")
         self.prompt.insert("1.0", cfg.get("prompt_template", config.DEFAULT_PROMPT))
-        self.prompt.grid(row=5, column=0, columnspan=3, sticky="nsew", **pad)
-        frm.rowconfigure(5, weight=1)
+        self.prompt.grid(row=6, column=0, columnspan=3, sticky="nsew", **pad)
+        frm.rowconfigure(6, weight=1)
         frm.columnconfigure(1, weight=1)
 
         btns = tb.Frame(frm)
-        btns.grid(row=7, column=0, columnspan=3, sticky="we", **pad)
+        btns.grid(row=8, column=0, columnspan=3, sticky="we", **pad)
         tb.Button(btns, text="Test connection", command=self._test,
                   bootstyle="info-outline").pack(side="left")
         self.status = tb.Label(btns, text="")
@@ -61,6 +68,11 @@ class SettingsDialog(tb.Toplevel):
                   bootstyle="success").pack(side="right")
         tb.Button(btns, text="Cancel", command=self.destroy,
                   bootstyle="secondary").pack(side="right", padx=6)
+
+    def _pick_work_dir(self):
+        d = filedialog.askdirectory(title="Work folder", parent=self)
+        if d:
+            self.vars["work_dir"].set(d)
 
     def _client(self):
         key = self.vars["api_key"].get().strip()
@@ -124,6 +136,7 @@ class SettingsDialog(tb.Toplevel):
         self.cfg["api_key"] = self.vars["api_key"].get().strip()
         self.cfg["api_model"] = self.vars["api_model"].get().strip()
         self.cfg["api_style"] = self.style_cb.get()
+        self.cfg["work_dir"] = self.vars["work_dir"].get().strip()
         self.cfg["prompt_template"] = self.prompt.get("1.0", "end").strip() + "\n"
         try:
             config.save_settings(self.cfg)

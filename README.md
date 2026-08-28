@@ -61,8 +61,11 @@ is needed for the external-subtitles mode (feeding an already translated `.srt`)
 selected subtitle track is already in the target language.
 
 ⚙ Settings in the app: AI API host, key and model (any OpenAI-compatible server — both
-`/v1/responses` and `/v1/chat/completions` are supported, auto-detected), plus the translation
-prompt. Stored per-user: `~/.config/voiceover-studio/settings.json` (Linux),
+`/v1/responses` and `/v1/chat/completions` are supported, auto-detected), the translation
+prompt, and the **work folder** — where per-file `.work` cache dirs (checkpoints, TTS clips,
+mixed tracks; roughly 20 MB per minute of video) are created. Empty = beside each source;
+set it to a fast local disk when sources sit on a network share, or to a tmpfs like
+`/dev/shm` on Linux to keep them in RAM (caches are then lost on reboot). Stored per-user: `~/.config/voiceover-studio/settings.json` (Linux),
 `%APPDATA%\VoiceoverStudio\settings.json` (Windows).
 
 ## Notes

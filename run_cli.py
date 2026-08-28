@@ -60,6 +60,7 @@ def cmd_dub(args):
     if args.translate_only and args.srt:
         sys.exit("--translate-only makes no sense with --srt (already translated)")
     target_lang = args.lang or cfg["target_lang"]
+    work = str(args.work_dir or cfg.get("work_dir", "")).strip()
     translator = None
 
     def get_translator():
@@ -96,10 +97,11 @@ def cmd_dub(args):
             fixed_gain_db=float(args.gain_db if args.gain_db is not None else cfg["fixed_gain_db"]),
             max_speed=float(cfg["max_speed"]),
             force=args.force,
+            work_root=Path(work) if work else None,
         )
         if args.translate_only:
             wd = p.workdir()
-            wd.mkdir(exist_ok=True)
+            wd.mkdir(parents=True, exist_ok=True)
             src_srt = wd / "source.srt"
             from voiceover_studio.core import ffbin
             ffbin.run(["-y", "-v", "error", "-i", str(src), "-map", f"0:s:{p.sub}", str(src_srt)])
@@ -159,6 +161,8 @@ def main():
     p.add_argument("--duck-ratio", type=float, default=None)
     p.add_argument("--level", choices=["track", "fixed", "off"], default=None)
     p.add_argument("--gain-db", type=float, default=None, help="fixed level offset (with --level fixed)")
+    p.add_argument("--work-dir", default=None,
+                   help="folder for work/cache dirs (default from settings; else beside the source)")
     p.add_argument("--force", action="store_true", help="ignore checkpoints, rebuild")
     p.add_argument("--translate-only", action="store_true")
     p.set_defaults(fn=cmd_dub)

@@ -180,7 +180,8 @@ class App(tb.Window):
                 keep_audio=p["keep_audio"], keep_subs=p["keep_subs"],
                 dub_format=p["dub_format"], duck=p["duck"], duck_ratio=p["duck_ratio"],
                 level_mode=p["level_mode"], level_k=float(self.cfg["level_k"]),
-                fixed_gain_db=p["fixed_gain_db"], max_speed=float(self.cfg["max_speed"])))
+                fixed_gain_db=p["fixed_gain_db"], max_speed=float(self.cfg["max_speed"]),
+                work_root=Path(self.cfg["work_dir"]) if str(self.cfg.get("work_dir", "")).strip() else None))
             self._job_paths.append(path)
         self.runner = BatchRunner(jobs, translator)
         self.queue_view.set_running(True)

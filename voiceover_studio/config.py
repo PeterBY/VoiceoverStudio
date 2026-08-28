@@ -37,6 +37,8 @@ DEFAULTS = {
     "batch_size": 40,
     "context_lines": 20,
     "lookahead_lines": 10,
+    # work/cache dirs: "" = beside each source; a path moves them there (e.g. off a network drive)
+    "work_dir": "",
     # dubbing defaults
     "target_lang": "pl",
     "voice": "pl-PL-ZofiaNeural",

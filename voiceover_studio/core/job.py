@@ -32,8 +32,13 @@ class JobParams:
     fixed_gain_db: float = 0.0
     max_speed: float = 1.0          # locked default: no speed-up
     force: bool = False
+    work_root: Path = None          # None = work dir beside the source
 
     def workdir(self):
+        if self.work_root:
+            # path hash keeps same-named sources from different folders apart
+            tag = hashlib.md5(str(Path(self.src).resolve()).encode("utf-8")).hexdigest()[:8]
+            return Path(self.work_root) / f"{Path(self.src).stem}.{tag}.work"
         return self.src.parent / (self.src.stem + ".work")
 
     def out_path(self):
@@ -71,7 +76,7 @@ def run_job(p: JobParams, translator=None, progress=None, cancel=None):
 
     p.src = Path(p.src)
     wd = p.workdir()
-    wd.mkdir(exist_ok=True)
+    wd.mkdir(parents=True, exist_ok=True)
     report = {"src": str(p.src), "out": str(p.out_path())}
 
     emit("probe", msg=p.src.name)
