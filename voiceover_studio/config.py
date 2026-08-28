@@ -12,6 +12,8 @@ else:
     CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "voiceover-studio"
 SETTINGS_PATH = CONFIG_DIR / "settings.json"
 
+# Style rules only — the input/output format contract (PROTOCOL) is fixed in core.translate
+# and always appended, so edits here cannot break the wire format.
 DEFAULT_PROMPT = """\
 You are a professional audiovisual translator. Translate subtitle dialogue into {target_language} \
 for a single-narrator voiceover (lektor) that is read over the quieted original audio.
@@ -20,10 +22,9 @@ Rules:
 - Keep translations COMPACT: the spoken line must fit the subtitle's time slot. Prefer short, natural wording. There is no speed-up: an overlong line desynchronizes the dub.
 - Collapse repetitions: "Go! Go! Go!" -> one word; a name shouted twice -> once (the original stays audible underneath).
 - Natural colloquial dialogue; keep the register and tone of each line; keep forms of address consistent across lines (use the provided context).
+- Follow the episode brief when given: character genders, forms of address, glossary renderings.
 - Keep proper names as-is unless there is a customary localized form.
 - If a line is pure noise/sound description, return "" for it.
-- Reply with a STRICT JSON object mapping line ids to translations, e.g. {{"12": "...", "13": "..."}}. No other text, no code fences, no comments.
-- Translate EVERY line given in "translate". Do not re-output the context lines.
 """
 
 DEFAULTS = {
@@ -34,7 +35,8 @@ DEFAULTS = {
     "api_style": "auto",      # auto | responses | chat
     "prompt_template": DEFAULT_PROMPT,
     "batch_size": 40,
-    "context_lines": 6,
+    "context_lines": 20,
+    "lookahead_lines": 10,
     # dubbing defaults
     "target_lang": "pl",
     "voice": "pl-PL-ZofiaNeural",
@@ -75,6 +77,8 @@ def load_settings():
             cfg.update(json.loads(SETTINGS_PATH.read_text(encoding="utf-8")))
         except (OSError, json.JSONDecodeError):
             pass
+    if cfg.get("context_lines") in (6, "6"):
+        cfg["context_lines"] = DEFAULTS["context_lines"]  # pre-brief default; never UI-exposed
     for env_key, cfg_key in _ENV_MAP.items():
         if os.environ.get(env_key):
             cfg[cfg_key] = os.environ[env_key]

@@ -71,6 +71,7 @@ def cmd_dub(args):
                 style=cfg["api_style"], prompt_template=cfg["prompt_template"],
                 target_lang=target_lang,
                 batch_size=int(cfg["batch_size"]), context_lines=int(cfg["context_lines"]),
+                lookahead_lines=int(cfg["lookahead_lines"]),
             )
         return translator
 

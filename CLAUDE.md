@@ -8,7 +8,8 @@ Fully CPU/local except two network calls: edge-tts (free) and the translation AP
 ## Layout
 
 - `voiceover_studio/core/` — pipeline library, **no GUI imports**: `probe` (ffprobe inventory),
-  `srt` (parse/clean/SDH-strip), `translate` (OpenAI-compatible client), `tts` (edge-tts + md5 cache),
+  `srt` (parse/clean/SDH-strip), `translate` (OpenAI-compatible client: episode brief +
+  scene-aligned context batches), `tts` (edge-tts + md5 cache),
   `audio` (numpy placement + level-tracking), `mix` (ffmpeg duck/downmix graphs), `mux` (copy-mux + verify),
   `job` (stages, checkpoints, progress, cancel)
 - `voiceover_studio/gui/` — ttkbootstrap UI over the same core
@@ -29,6 +30,12 @@ Fully CPU/local except two network calls: edge-tts (free) and the translation AP
   players cut audio dead when the voiceover starts.
 - **Always verify the result**: tail `volumedetect` on the dub track (> −70 dB), duration delta ≤ 2 s.
 - Cue numbers/timecodes are the backbone (translations map by number) — never renumber.
+- Translation is two-pass: `brief.txt` (whole-episode facts: characters, genders, address forms,
+  glossary) is built once per file, injected into every batch and md5-hashed into the
+  translations-cache stamp; a failed brief degrades to no-brief translation, never fails the job.
+  The wire-format contract (`PROTOCOL` in `translate.py`) is fixed in code — prompt edits in
+  Settings can't break it. The translations stamp is written BEFORE translating so interrupted
+  runs resume from the partial cache.
 - edge-tts clip cache key `md5(voice|pitch|rate|text)` — keep stable, caches are reused across runs.
 - Subprocesses must pass `CREATE_NO_WINDOW` on Windows (`ffbin.CREATIONFLAGS`) — else every ffmpeg
   call flashes a console window under the windowed GUI.

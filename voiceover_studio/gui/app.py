@@ -165,7 +165,8 @@ class App(tb.Window):
                     model=self.cfg["api_model"], style=self.cfg["api_style"],
                     prompt_template=self.cfg["prompt_template"], target_lang=p["target_lang"],
                     batch_size=int(self.cfg["batch_size"]),
-                    context_lines=int(self.cfg["context_lines"]))
+                    context_lines=int(self.cfg["context_lines"]),
+                    lookahead_lines=int(self.cfg["lookahead_lines"]))
             except TranslateError as e:
                 messagebox.showerror("Voiceover Studio", str(e))
                 return

@@ -7,6 +7,8 @@ Give it a video with embedded subtitles and it will:
 
 1. extract the subtitle track you choose (SDH noise tags and speaker labels are cleaned automatically);
 2. translate it with any **OpenAI-compatible API** — your endpoint, your key, editable prompt;
+   the model first gets a whole-episode brief (characters, genders, glossary), then translates
+   scene by scene with rolling context and a lookahead;
 3. synthesize a narrator with **Microsoft Edge neural voices** (edge-tts, 300+ voices);
 4. duck the original audio under the narrator — **center channel only** on surround sources, so
    music and effects stay untouched — and mux everything back.

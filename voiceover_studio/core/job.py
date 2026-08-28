@@ -4,11 +4,13 @@ Work dir `<src>.work/` beside the source holds every intermediate; a stage whose
 output is newer than its inputs is skipped, so an interrupted job resumes cheaply
 (edge-tts clips and translations survive re-runs).
 """
+import hashlib
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import audio, ffbin, mix, mux, probe, srt
+from .translate import TranslateError
 from ..config import same_lang
 
 
@@ -114,18 +116,41 @@ def run_job(p: JobParams, translator=None, progress=None, cancel=None):
             report["translated"] = "same-language"
             report["untranslated"] = []
         else:
-            cache = wd / "translations.json"
-            # "sdh": True stays in the stamp for cache compatibility (stripping is always on now)
-            tr_params = {"target_lang": p.target_lang, "sdh": True, "source": f"s:{p.sub}"}
-            if cache.exists() and (p.force or not _params_ok(cache, tr_params)):
-                cache.unlink()
             if translator is None:
                 raise ValueError("translator is required")
+            # 3a) episode brief: whole-text facts (characters, genders, glossary) that every
+            # translation batch rides on; a failed brief degrades to plain translation
+            brief_txt = wd / "brief.txt"
+            brief_params = {"target_lang": p.target_lang}
+            if p.force or not _params_ok(brief_txt, brief_params) or not _fresh(brief_txt, src_srt):
+                emit("translate", msg="building episode brief")
+                try:
+                    brief = translator.build_brief(cues, cancel=cancel)
+                except TranslateError as e:
+                    if cancel is not None and cancel.is_set():
+                        raise
+                    brief = ""
+                    emit("translate", msg=f"brief unavailable — translating without ({e})")
+                brief_txt.write_text(brief, encoding="utf-8")
+                _write_params(brief_txt, brief_params)
+            else:
+                brief = brief_txt.read_text(encoding="utf-8")
+            translator.brief = brief
+
+            # 3b) translate
+            cache = wd / "translations.json"
+            # "sdh": True stays in the stamp for cache compatibility (stripping is always on now)
+            tr_params = {"target_lang": p.target_lang, "sdh": True, "source": f"s:{p.sub}",
+                         "brief": hashlib.md5(brief.encode("utf-8")).hexdigest()}
+            if cache.exists() and (p.force or not _params_ok(cache, tr_params)):
+                cache.unlink()
+            # stamp before translating, not after: an interrupted run must keep its
+            # partial cache (else resume re-translates from scratch)
+            _write_params(cache, tr_params)
             emit("translate", 0, n_text, "starting")
             translations = translator.translate_cues(
                 cues, cache_path=cache,
                 progress=lambda d, t, m: emit("translate", d, t, m), cancel=cancel)
-            _write_params(cache, tr_params)
             target_cues, missing = srt.build_target(cues, translations)
             report["translated"] = n_text - len(missing)
             report["untranslated"] = sorted(missing)
