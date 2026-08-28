@@ -16,10 +16,16 @@ def dub_titles(lang):
     return f"{name} (lektor)", name
 
 
+# mp4/3gp timed text: Matroska can't hold these codecs — stream-copying one kills the
+# whole mux at header time ("Subtitle codec 94213 is not supported")
+CONVERT_TO_SRT = {"mov_text", "text"}
+
+
 def mux(src, dub_track, target_srt, out_path, *, keep_audio, keep_subs,
-        target_lang, cancel=None):
+        target_lang, sub_codecs=None, cancel=None):
     """video copy + dub AC3 (default) + kept original audio + target sub (default)
-    + kept original subs. Everything stream-copied; -max_interleave_delta 0."""
+    + kept original subs. Everything stream-copied (mp4 timed text re-encoded to srt);
+    -max_interleave_delta 0. sub_codecs: source codec per keep_subs entry."""
     lang3 = LANG3.get(target_lang, target_lang)
     a_title, s_title = dub_titles(target_lang)
     cmd = ["-y", "-v", "error", "-i", str(src), "-i", str(dub_track), "-i", str(target_srt),
@@ -29,8 +35,11 @@ def mux(src, dub_track, target_srt, out_path, *, keep_audio, keep_subs,
     cmd += ["-map", "2:0"]
     for i in keep_subs:
         cmd += ["-map", f"0:s:{i}"]
-    cmd += ["-c", "copy", "-max_interleave_delta", "0",
-            "-metadata:s:a:0", f"language={lang3}", "-metadata:s:a:0", f"title={a_title}",
+    cmd += ["-c", "copy", "-max_interleave_delta", "0"]
+    for pos, codec in enumerate(sub_codecs or [], start=1):  # kept subs land at s:1.. (s:0 = dub sub)
+        if codec in CONVERT_TO_SRT:
+            cmd += [f"-c:s:{pos}", "srt"]
+    cmd += ["-metadata:s:a:0", f"language={lang3}", "-metadata:s:a:0", f"title={a_title}",
             "-disposition:a:0", "default"]
     for pos in range(1, 1 + len(keep_audio)):
         cmd += [f"-disposition:a:{pos}", "0"]
@@ -42,9 +51,11 @@ def mux(src, dub_track, target_srt, out_path, *, keep_audio, keep_subs,
     ffbin.run(cmd, cancel=cancel)
 
 
-def verify(out_path, expected_duration, cancel=None):
+def verify(out_path, expected_duration, voice_end=None, cancel=None):
     """The legacy pipeline once produced a file whose dub track silently died mid-episode
-    (metadata showed full duration, packets ended early) — so check the tail for real audio."""
+    (metadata showed full duration, packets ended early) — so listen for audio on the dub
+    track around the LAST spoken cue (`voice_end`, seconds). A blind end-of-file check
+    false-fails movies whose final ~30 s are silent credits."""
     info = probe.probe(out_path, cancel=cancel)
     report = {
         "duration_s": round(info.duration, 1),
@@ -54,8 +65,14 @@ def verify(out_path, expected_duration, cancel=None):
         "tail_mean_db": None,
         "ok": False,
     }
-    at = max(0.0, min(expected_duration, info.duration) - 30.0)
-    err = ffbin.run(["-hide_banner", "-ss", f"{at:.1f}", "-t", "4", "-i", str(out_path),
+    end = min(expected_duration, info.duration)
+    if voice_end:
+        # [-6..+6] s around the cue end: placement may shift speech a few seconds later
+        at = max(0.0, min(voice_end, end) - 6.0)
+    else:
+        at = max(0.0, end - 30.0)
+    report["checked_at_s"] = round(at, 1)
+    err = ffbin.run(["-hide_banner", "-ss", f"{at:.1f}", "-t", "12", "-i", str(out_path),
                      "-map", "0:a:0", "-af", "volumedetect", "-f", "null", "-"],
                     cancel=cancel, capture="stderr")
     m = re.search(r"mean_volume:\s*(-?[\d.]+)\s*dB", err)

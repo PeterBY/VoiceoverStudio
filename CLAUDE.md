@@ -28,7 +28,10 @@ Fully CPU/local except two network calls: edge-tts (free) and the translation AP
   same ffmpeg run as `-c:v copy` silently truncates audio (metadata full, packets end early).
 - Stereo downmix must be **clip-safe**: normalized `pan` coefficients + `alimiter` — a naive sum clips and
   players cut audio dead when the voiceover starts.
-- **Always verify the result**: tail `volumedetect` on the dub track (> −70 dB), duration delta ≤ 2 s.
+- **Always verify the result**: `volumedetect` on the dub track around the LAST spoken cue
+  (> −70 dB; a blind last-30s check false-fails movies with silent credits), duration delta ≤ 2 s.
+- Muxing into MKV: mp4 timed text (`mov_text`) can't be stream-copied — `mux.py` re-encodes such
+  kept subs to srt (else the whole mux dies at header time with an empty output).
 - Cue numbers/timecodes are the backbone (translations map by number) — never renumber.
 - Translation is two-pass: `brief.txt` (whole-episode facts: characters, genders, address forms,
   glossary) is built once per file, injected into every batch and md5-hashed into the

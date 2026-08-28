@@ -210,9 +210,13 @@ def run_job(p: JobParams, translator=None, progress=None, cancel=None):
     emit("mux", msg=p.out_path().name)
     mux.mux(p.src, dub_track, target_srt, p.out_path(),
             keep_audio=p.keep_audio, keep_subs=p.keep_subs,
+            sub_codecs=[info.subs[i].codec if 0 <= i < len(info.subs) else ""
+                        for i in p.keep_subs],
             target_lang=p.target_lang, cancel=cancel)
     emit("verify", msg="checking result")
-    report["verify"] = mux.verify(p.out_path(), info.duration, cancel=cancel)
+    voice_end = max((c.end for c in target_cues if c.text), default=None)
+    report["verify"] = mux.verify(p.out_path(), info.duration, voice_end=voice_end,
+                                  cancel=cancel)
     # a failed verify keeps the work dir: reruns and debugging need the caches
     if p.cleanup and report["verify"]["ok"] and wd.name.endswith(".work"):
         emit("verify", msg="removing work dir")
