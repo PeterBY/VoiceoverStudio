@@ -180,15 +180,17 @@ def run_job(p: JobParams, translator=None, progress=None, cancel=None):
 
     # 5) synthesize + place
     dub_wav = wd / "dub.wav"
+    duck_mask = wd / "duckmask.wav"  # speech envelope for the mixer's ducking
     wav_params = {"voice": p.voice, "level_mode": p.level_mode, "level_k": p.level_k,
                   "fixed_gain_db": p.fixed_gain_db, "max_speed": p.max_speed}
-    if (p.force or not _params_ok(dub_wav, wav_params)
+    if (p.force or not _params_ok(dub_wav, wav_params) or not duck_mask.exists()
             or not _fresh(dub_wav, target_srt, ref_wav if p.level_mode == "track" else None)):
-        master, stats = audio.build_track(
+        master, mask, stats = audio.build_track(
             target_cues, wd / "clips", p.voice, info.duration,
             gains=gains, max_speed=p.max_speed,
             progress=lambda d, t, m: emit("tts", d, t, m), cancel=cancel)
         audio.write_wav_mono(dub_wav, master)
+        audio.write_wav_mono(duck_mask, mask, sr=audio.MASK_SR)
         _write_params(dub_wav, wav_params)
         report["placement"] = stats
     else:
@@ -196,13 +198,17 @@ def run_job(p: JobParams, translator=None, progress=None, cancel=None):
 
     # 6) mix into an audio FILE (two-stage build: inline mux truncated audio once)
     dub_track = wd / "dub_track.mka"
+    # duck_mode key: envelope ducking must not reuse a track mixed by an older
+    # duck graph with numerically identical params
     mix_params = {"audio": p.audio, "duck": p.duck, "duck_ratio": p.duck_ratio,
-                  "dub_format": p.dub_format}
-    if p.force or not _params_ok(dub_track, mix_params) or not _fresh(dub_track, dub_wav):
+                  "duck_mode": "envelope-gate", "dub_format": p.dub_format}
+    if (p.force or not _params_ok(dub_track, mix_params)
+            or not _fresh(dub_track, dub_wav, duck_mask)):
         emit("mix", msg=f"{mix.layout_kind(base.channels)} -> {p.dub_format}"
                         f"{' + duck' if p.duck else ''}")
         mix.build_dub_track(p.src, base.type_index, dub_wav, dub_track,
                             channels=base.channels, duck=p.duck, duck_ratio=p.duck_ratio,
+                            duck_mask=duck_mask if p.duck else None,
                             out_format=p.dub_format, cancel=cancel)
         _write_params(dub_track, mix_params)
 

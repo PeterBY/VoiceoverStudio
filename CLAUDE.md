@@ -24,6 +24,11 @@ Fully CPU/local except two network calls: edge-tts (free) and the translation AP
 - **No TTS speed-up** (`max_speed=1.0`): fit by shifting; overlong lines are fixed at translation
   (compact phrasing, collapse repeats). Drift resets at pauses.
 - Surround sources: duck **CENTER channel only** (music/effects untouched). Stereo sources: duck both channels.
+- Ducking is **envelope-driven**: placement writes `duckmask.wav` (0/1 speech mask from where clips
+  ACTUALLY landed, @8 kHz); mix inverts it into a `sidechaingate` key — floor `1/ratio`, so
+  `duck_ratio` 2 = −6 dB under speech, deterministic. A sidechain compressor keyed off the quiet
+  edge-tts waveform gave only ~2 dB and pumped — do not go back. Do NOT use `amultiply` for the
+  gain: unequal-length inputs hang the ffmpeg 9 graph scheduler at EOF (flaky, surround→stereo).
 - **Build the dub audio to a file, then copy-mux** (`-max_interleave_delta 0`). Producing it inline in the
   same ffmpeg run as `-c:v copy` silently truncates audio (metadata full, packets end early).
 - Stereo downmix must be **clip-safe**: normalized `pan` coefficients + `alimiter` — a naive sum clips and

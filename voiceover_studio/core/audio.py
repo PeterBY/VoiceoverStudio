@@ -16,6 +16,7 @@ from .tts import ensure_clip
 
 SR = 48000
 GAP = 0.04  # min silence between shifted clips (s)
+MASK_SR = 8000  # duck mask rate: a slow envelope doesn't need 48k (file is 6x smaller)
 
 
 def trim_silence(x, thr=0.008, pad=0.03):
@@ -45,12 +46,33 @@ def read_wav_mono(path):
     return (a.reshape(-1, ch).mean(1) if ch > 1 else a), sr
 
 
-def write_wav_mono(path, data):
+def write_wav_mono(path, data, sr=SR):
     with wave.open(str(path), "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
-        w.setframerate(SR)
+        w.setframerate(sr)
         w.writeframes((np.clip(data, -1.0, 1.0) * 32767).astype(np.int16).tobytes())
+
+
+def _speech_mask(intervals, total_s, ramp_in=0.15, ramp_out=0.3):
+    """0/1 envelope of narrator speech (@MASK_SR) with linear ramps; the mixer
+    turns it into a duck gain. Built from ACTUAL clip placements, not cue times —
+    shifted clips duck where the voice really is."""
+    n = int(total_s * MASK_SR)
+    m = np.zeros(n, dtype=np.float32)
+    ri, ro = int(ramp_in * MASK_SR), int(ramp_out * MASK_SR)
+    for a, b in intervals:
+        i0, i1 = max(0, int(a * MASK_SR)), min(n, int(b * MASK_SR))
+        if i1 <= i0:
+            continue
+        m[i0:i1] = 1.0
+        j0 = max(0, i0 - ri)
+        if i0 > j0:
+            m[j0:i0] = np.maximum(m[j0:i0], np.linspace(0.0, 1.0, i0 - j0, endpoint=False))
+        j1 = min(n, i1 + ro)
+        if j1 > i1:
+            m[i1:j1] = np.maximum(m[i1:j1], np.linspace(1.0, 0.0, j1 - i1, endpoint=False))
+    return m
 
 
 def compute_level_gains(cues, ref_wav, k=0.6, csv_path=None):
@@ -111,9 +133,11 @@ def build_track(cues, cache_dir, voice, total_s, *, gains=None, max_speed=1.0,
                 progress=None, cancel=None):
     """Synthesize every cue and place it on a mono master track.
 
-    gains: {num: linear multiplier} or None. Returns (master float32, stats dict).
+    gains: {num: linear multiplier} or None.
+    Returns (master float32, duck mask float32 @MASK_SR, stats dict).
     """
     master = np.zeros(int(total_s * SR) + SR, dtype=np.float32)
+    speech = []  # (start_s, end_s) of each placed clip, for the duck mask
     cursor, placed, shifted, sped, maxshift = 0.0, 0, 0, 0, 0.0
     for i, c in enumerate(cues):
         if cancel is not None and cancel.is_set():
@@ -140,6 +164,7 @@ def build_track(cues, cache_dir, voice, total_s, *, gains=None, max_speed=1.0,
         if s1 > len(master):
             master = np.concatenate([master, np.zeros(s1 - len(master) + 1, dtype=np.float32)])
         master[s0:s1] += clip
+        speech.append((start, start + dur))
         cursor = start + dur + GAP
         placed += 1
         maxshift = max(maxshift, start - c.start)
@@ -157,4 +182,4 @@ def build_track(cues, cache_dir, voice, total_s, *, gains=None, max_speed=1.0,
         master *= 0.98 / peak
     stats = {"cues": len(cues), "placed": placed, "shifted": shifted,
              "sped_up": sped, "max_shift_s": round(maxshift, 1)}
-    return master, stats
+    return master, _speech_mask(speech, total_s), stats

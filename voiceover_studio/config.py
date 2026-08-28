@@ -45,7 +45,7 @@ DEFAULTS = {
     "voice": "pl-PL-ZofiaNeural",
     "dub_format": "stereo",   # stereo | original
     "duck": True,
-    "duck_ratio": 1.5,   # user-picked on the test sample (2.0 ducked the original too hard)
+    "duck_ratio": 2.0,   # envelope duck: original at 1/ratio under speech (2.0 = -6 dB)
     "level_mode": "track",    # track | fixed | off
     "level_k": 0.6,
     "fixed_gain_db": 0.0,
