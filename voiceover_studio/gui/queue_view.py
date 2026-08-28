@@ -32,6 +32,7 @@ class QueueView(tb.Frame):
 
         self.log = ScrolledText(self, height=14, state="disabled", wrap="word")
         self.log.pack(fill="both", expand=True, pady=(8, 0))
+        self._logged_stage = None
 
     def set_running(self, running):
         self.start_btn.configure(state="disabled" if running else "normal")
@@ -42,9 +43,15 @@ class QueueView(tb.Frame):
         self.file_lbl.configure(text=name)
         self.bar.configure(value=0)
         self.stage_lbl.configure(text="")
+        self._logged_stage = None
 
     def progress(self, stage, done, total, msg):
         name = STAGE_EN.get(stage, stage)
+        # one log line per stage transition; per-item counters only move the bar
+        if stage != self._logged_stage:
+            self._logged_stage = stage
+            if stage != "done":
+                self.log_line(f"  · {name}" + (f": {msg}" if msg else ""))
         if total > 1:
             self.bar.configure(value=100.0 * done / total)
             self.stage_lbl.configure(text=f"{name}: {msg}")

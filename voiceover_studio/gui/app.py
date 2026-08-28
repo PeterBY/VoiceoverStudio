@@ -97,15 +97,22 @@ class App(tb.Window):
                     idx, name, report = rest
                     v = report.get("verify", {})
                     pl = report.get("placement", {})
+                    ok = bool(v.get("ok"))
                     self.queue_view.log_line(
-                        f"  ✔ {Path(report['out']).name}: tail {v.get('tail_mean_db')} dB, "
+                        f"  {'✔' if ok else '⚠ verify FAILED —'} {Path(report['out']).name}: "
+                        f"tail {v.get('tail_mean_db')} dB at {v.get('checked_at_s', '—')} s, "
+                        f"duration delta {v.get('duration_delta_s', '—')} s, "
                         f"max shift {pl.get('max_shift_s', '—')} s, "
-                        f"untranslated {len(report.get('untranslated', []))}")
+                        f"untranslated {len(report.get('untranslated', []))}"
+                        + (", work dir removed" if report.get("work_cleaned") else ""))
                     self.files_view.mark_status(self._job_paths[idx],
-                                                "✔" if v.get("ok") else "⚠ verify")
+                                                "✔" if ok else "⚠ verify")
                 elif kind == "file_error":
                     idx, name, err = rest
-                    self.queue_view.log_line(f"  ✘ error: {err.splitlines()[0]}")
+                    lines = err.strip().splitlines() or ["unknown error"]
+                    self.queue_view.log_line(f"  ✘ error: {lines[0]}")
+                    for ln in lines[1:]:
+                        self.queue_view.log_line(f"      {ln}")
                     self.files_view.mark_status(self._job_paths[idx], "✘ error")
                 elif kind == "file_cancelled":
                     idx, name, _ = rest

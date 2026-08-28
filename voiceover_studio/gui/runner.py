@@ -5,7 +5,8 @@ import threading
 import traceback
 
 from ..core import job
-from ..core.ffbin import CancelledError
+from ..core.ffbin import CancelledError, FFmpegError
+from ..core.translate import TranslateError
 
 
 class BatchRunner:
@@ -43,8 +44,11 @@ class BatchRunner:
             except CancelledError:
                 self.events.put(("file_cancelled", i, p.src.name, None))
                 break
-            except Exception as e:  # noqa: BLE001 - surface any stage failure in the UI
+            except (FFmpegError, TranslateError, ValueError) as e:
+                # expected pipeline failures carry a full message (ffmpeg stderr tail etc.)
                 failed += 1
-                self.events.put(("file_error", i, p.src.name,
-                                 f"{e}\n{traceback.format_exc(limit=3)}"))
+                self.events.put(("file_error", i, p.src.name, str(e)))
+            except Exception:  # noqa: BLE001 - surface any stage failure in the UI
+                failed += 1
+                self.events.put(("file_error", i, p.src.name, traceback.format_exc(limit=6)))
         self.events.put(("batch_done", done, failed, None))
