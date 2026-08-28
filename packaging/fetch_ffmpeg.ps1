@@ -5,10 +5,13 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $api = "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest"
 $assets = (Invoke-RestMethod -Uri $api).assets.browser_download_url
-$url = $assets | Where-Object { $_ -match 'ffmpeg-n[\d.]+-latest-win64-lgpl-[\d.]+\.zip$' } |
+# PINNED branch: the ffmpeg 9.x CLI nondeterministically truncates/hangs multi-input
+# filter graphs at EOF (verified 2026-08 on n9.0.1). n8.1 is race-free on the same
+# graphs. Override: $env:VOS_FFMPEG_BRANCH.
+$pin = if ($env:VOS_FFMPEG_BRANCH) { $env:VOS_FFMPEG_BRANCH } else { "n8.1" }
+$url = $assets | Where-Object { $_ -match "ffmpeg-$pin-latest-win64-lgpl-[\d.]+\.zip$" } |
     Sort-Object | Select-Object -Last 1
-if (-not $url) { $url = $assets | Where-Object { $_ -match 'master-latest-win64-lgpl\.zip$' } | Select-Object -First 1 }
-if (-not $url) { throw "no win64-lgpl asset found" }
+if (-not $url) { throw "no $pin win64-lgpl asset found (see VOS_FFMPEG_BRANCH)" }
 $tmp = Join-Path $env:TEMP "vos_ffmpeg"
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
 $zip = Join-Path $tmp "ff.zip"

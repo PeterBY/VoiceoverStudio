@@ -108,6 +108,11 @@ App icon: `packaging/make_icon.py` regenerates `assets/app.png` (runtime `iconph
 datas) + `assets/app.ico` (exe resource, win32 only); both are committed — CI never regenerates.
 Build Linux releases on the oldest available runner/distro (glibc floor).
 
+**ffmpeg version pin:** fetch scripts pin BtbN branch **n8.1** (`VOS_FFMPEG_BRANCH` overrides).
+ffmpeg 9.x CLI nondeterministically truncates/hangs multi-input filter graphs at EOF (verified
+2026-08 on n9.0.1 with the duck graphs); n8.1 measured clean (16/16 runs, tail jitter ≤ 1 ac3
+frame). Re-verify before ever bumping the pin.
+
 **ffmpeg licensing (hard rule):** bundle ONLY **LGPL** builds (BtbN `*-lgpl` assets; fetch scripts
 verify no `--enable-gpl` and fail otherwise). App is MIT; a GPL ffmpeg would drag the whole bundle
 under GPL. LGPL covers the entire pipeline: video is stream-copied, ac3/pcm encoders and all used

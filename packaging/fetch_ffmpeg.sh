@@ -6,10 +6,12 @@ set -e
 cd "$(dirname "$0")/.."
 API="https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest"
 URLS=$(curl -s "$API" | grep -oE '"browser_download_url": *"[^"]+"' | cut -d'"' -f4)
-# prefer a release-branch build (ffmpeg-nX.Y-latest-linux64-lgpl-X.Y.tar.xz), fall back to master
-URL=$(echo "$URLS" | grep -E 'ffmpeg-n[0-9.]+-latest-linux64-lgpl-[0-9.]+\.tar\.xz$' | sort -V | tail -1)
-[ -z "$URL" ] && URL=$(echo "$URLS" | grep -E 'master-latest-linux64-lgpl\.tar\.xz$' | head -1)
-[ -z "$URL" ] && { echo "no linux64-lgpl asset found"; exit 1; }
+# PINNED branch: the ffmpeg 9.x CLI nondeterministically truncates/hangs multi-input
+# filter graphs at EOF (verified 2026-08 on n9.0.1: duck graphs lost up to ~1 s of
+# tail, or deadlocked). n8.1 is race-free on the same graphs (n7.1 no longer published). Override: VOS_FFMPEG_BRANCH.
+PIN="${VOS_FFMPEG_BRANCH:-n8.1}"
+URL=$(echo "$URLS" | grep -E "ffmpeg-${PIN}-latest-linux64-lgpl-[0-9.]+\.tar\.xz$" | sort -V | tail -1)
+[ -z "$URL" ] && { echo "no ${PIN} linux64-lgpl asset found (see VOS_FFMPEG_BRANCH)"; exit 1; }
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 echo "downloading $URL"
