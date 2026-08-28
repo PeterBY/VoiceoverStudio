@@ -96,6 +96,8 @@ dist\VoiceoverStudio\VoiceoverStudio.exe     # + VoiceoverStudio-cli.exe
 Spec notes: resources land in `_internal/` (PyInstaller 6.x) — `ffbin.app_dir()` uses `sys._MEIPASS`
 when frozen; `PIL._tkinter_finder` stays in hiddenimports; ffplay is bundled when the fetch script
 provides it (voice Preview — BtbN ships it on both platforms).
+App icon: `packaging/make_icon.py` regenerates `assets/app.png` (runtime `iconphoto`, bundled via
+datas) + `assets/app.ico` (exe resource, win32 only); both are committed — CI never regenerates.
 Build Linux releases on the oldest available runner/distro (glibc floor).
 
 **ffmpeg licensing (hard rule):** bundle ONLY **LGPL** builds (BtbN `*-lgpl` assets; fetch scripts

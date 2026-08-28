@@ -38,6 +38,7 @@ else:
 
 GUI_NAME = "VoiceoverStudio" if sys.platform == "win32" else "voiceover-studio"
 CLI_NAME = GUI_NAME + "-cli"
+ICON = os.path.join(ROOT, "assets", "app.ico") if sys.platform == "win32" else None
 
 SFX = ".exe" if sys.platform == "win32" else ""
 FF_DIR = os.path.join(ROOT, "third_party", "ffmpeg")
@@ -54,7 +55,8 @@ a_gui = Analysis(
     [os.path.join(ROOT, "run_gui.py")],
     pathex=[ROOT],
     binaries=ffmpeg_binaries,
-    datas=ttk_datas,
+    datas=ttk_datas + [(os.path.join(ROOT, "assets", "app.png"), "assets"),
+                       (os.path.join(ROOT, "assets", "app.ico"), "assets")],
     # PIL._tkinter_finder is imported dynamically by PIL.ImageTk (via ttkbootstrap)
     hiddenimports=["PIL._tkinter_finder"],
     noarchive=False,
@@ -69,6 +71,7 @@ exe_gui = EXE(
     console=False,
     upx=False,
     version=WIN_VERSION,
+    icon=ICON,
 )
 
 a_cli = Analysis(
@@ -89,6 +92,7 @@ exe_cli = EXE(
     console=True,
     upx=False,
     version=WIN_VERSION,
+    icon=ICON,
 )
 
 coll = COLLECT(

@@ -9,11 +9,13 @@ import httpx
 import ttkbootstrap as tb
 
 from .. import config
+from . import icons
 
 
 class SettingsDialog(tb.Toplevel):
     def __init__(self, master, cfg, on_saved):
         super().__init__(master)
+        icons.apply(self)
         self.title("Settings")
         self.geometry("620x560")
         self.cfg = cfg
@@ -104,6 +106,7 @@ class SettingsDialog(tb.Toplevel):
             self.vars["api_model"].set(ids[0])
         if ids:
             top = tb.Toplevel(self)
+            icons.apply(top)
             top.title("Select model")
             lb = tk.Listbox(top, height=min(16, len(ids)), width=40)
             for i in ids:

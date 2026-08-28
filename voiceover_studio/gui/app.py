@@ -7,6 +7,7 @@ from tkinter import messagebox
 import ttkbootstrap as tb
 
 from .. import __version__, config
+from . import icons
 from ..core.job import JobParams
 from ..core.translate import Translator, TranslateError
 from .files_view import FilesView
@@ -25,6 +26,7 @@ def _cache_dir():
 class App(tb.Window):
     def __init__(self):
         super().__init__(title=f"Voiceover Studio v{__version__}", themename="darkly")
+        icons.apply(self)
         self.geometry("1000x680")
         self.minsize(860, 560)
         self.cfg = config.load_settings()
