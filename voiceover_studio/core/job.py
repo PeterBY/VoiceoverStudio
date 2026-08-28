@@ -6,6 +6,7 @@ output is newer than its inputs is skipped, so an interrupted job resumes cheapl
 """
 import hashlib
 import json
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -33,6 +34,7 @@ class JobParams:
     max_speed: float = 1.0          # locked default: no speed-up
     force: bool = False
     work_root: Path = None          # None = work dir beside the source
+    cleanup: bool = True            # delete the work dir after a verified success
 
     def workdir(self):
         if self.work_root:
@@ -211,7 +213,13 @@ def run_job(p: JobParams, translator=None, progress=None, cancel=None):
             target_lang=p.target_lang, cancel=cancel)
     emit("verify", msg="checking result")
     report["verify"] = mux.verify(p.out_path(), info.duration, cancel=cancel)
-    (wd / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2),
-                                    encoding="utf-8")
+    # a failed verify keeps the work dir: reruns and debugging need the caches
+    if p.cleanup and report["verify"]["ok"] and wd.name.endswith(".work"):
+        emit("verify", msg="removing work dir")
+        shutil.rmtree(wd, ignore_errors=True)
+        report["work_cleaned"] = True
+    else:
+        (wd / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2),
+                                        encoding="utf-8")
     emit("done", 1, 1, p.out_path().name)
     return report

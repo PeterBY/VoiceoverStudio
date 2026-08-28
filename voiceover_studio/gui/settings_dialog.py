@@ -50,16 +50,20 @@ class SettingsDialog(tb.Toplevel):
         tb.Button(frm, text="…", width=3, command=self._pick_work_dir,
                   bootstyle="secondary-outline").grid(row=4, column=2, **pad)
 
+        self.cleanup_var = tb.BooleanVar(value=bool(cfg.get("cleanup_work", True)))
+        tb.Checkbutton(frm, text="Delete work dir on success",
+                       variable=self.cleanup_var).grid(row=5, column=1, sticky="w", **pad)
+
         tb.Label(frm, text="Translation prompt:").grid(
-            row=5, column=0, columnspan=2, sticky="w", **pad)
+            row=6, column=0, columnspan=2, sticky="w", **pad)
         self.prompt = tk.Text(frm, height=12, wrap="word")
         self.prompt.insert("1.0", cfg.get("prompt_template", config.DEFAULT_PROMPT))
-        self.prompt.grid(row=6, column=0, columnspan=3, sticky="nsew", **pad)
-        frm.rowconfigure(6, weight=1)
+        self.prompt.grid(row=7, column=0, columnspan=3, sticky="nsew", **pad)
+        frm.rowconfigure(7, weight=1)
         frm.columnconfigure(1, weight=1)
 
         btns = tb.Frame(frm)
-        btns.grid(row=8, column=0, columnspan=3, sticky="we", **pad)
+        btns.grid(row=9, column=0, columnspan=3, sticky="we", **pad)
         tb.Button(btns, text="Test connection", command=self._test,
                   bootstyle="info-outline").pack(side="left")
         self.status = tb.Label(btns, text="")
@@ -137,6 +141,7 @@ class SettingsDialog(tb.Toplevel):
         self.cfg["api_model"] = self.vars["api_model"].get().strip()
         self.cfg["api_style"] = self.style_cb.get()
         self.cfg["work_dir"] = self.vars["work_dir"].get().strip()
+        self.cfg["cleanup_work"] = bool(self.cleanup_var.get())
         self.cfg["prompt_template"] = self.prompt.get("1.0", "end").strip() + "\n"
         try:
             config.save_settings(self.cfg)

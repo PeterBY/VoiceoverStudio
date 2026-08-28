@@ -21,8 +21,9 @@ subtitle tracks you chose to keep.
 
 - **Batch processing** for whole seasons: files are grouped by stream structure, mismatches flagged;
   per-file progress and cancel
-- **Resume for free**: translations and synthesized lines are cached in a `.work/` folder beside each
-  source — re-runs and parameter tweaks only redo the affected stages
+- **Resume for free**: translations and synthesized lines are cached in a per-file `.work/` folder —
+  an interrupted or failed run resumes where it stopped; after a verified success the folder is
+  cleaned up (disable in settings to keep caches for parameter tweaking)
 - **Narrator volume tracking**: the voiceover follows the loudness of the original scene
   (or a fixed ±dB offset, your choice)
 - Ducking presets or off; dub track as **stereo downmix** or the **original channel layout**
@@ -65,7 +66,9 @@ selected subtitle track is already in the target language.
 prompt, and the **work folder** — where per-file `.work` cache dirs (checkpoints, TTS clips,
 mixed tracks; roughly 20 MB per minute of video) are created. Empty = beside each source;
 set it to a fast local disk when sources sit on a network share, or to a tmpfs like
-`/dev/shm` on Linux to keep them in RAM (caches are then lost on reboot). Stored per-user: `~/.config/voiceover-studio/settings.json` (Linux),
+`/dev/shm` on Linux to keep them in RAM (caches are then lost on reboot). By default each
+work dir is deleted after its file succeeds verification; untick "Delete work dir on
+success" to keep caches for parameter tweaking. Stored per-user: `~/.config/voiceover-studio/settings.json` (Linux),
 `%APPDATA%\VoiceoverStudio\settings.json` (Windows).
 
 ## Notes

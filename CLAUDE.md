@@ -69,7 +69,9 @@ VOS_SMOKE=1 .venv-app/bin/python run_gui.py     # GUI smoke: opens and auto-clos
 
 Checkpoints live in `<src>.work/` beside the source — unless the `work_dir` setting / `--work-dir`
 relocates them to `<work_dir>/<stem>.<path-hash>.work` (hash keeps same-named sources apart);
-`--force` rebuilds. Output: `<src>.<LANG>.mkv` (always beside the source).
+`--force` rebuilds. By default the work dir is DELETED after a verified success (`cleanup_work`
+setting, on; CLI `--keep-work` keeps it for one run); any failure keeps it for resume/debugging.
+Output: `<src>.<LANG>.mkv` (always beside the source).
 Config: `~/.config/voiceover-studio/settings.json` (Linux) / `%APPDATA%\VoiceoverStudio\settings.json`
 (Windows); `.env` overrides at runtime (dev only). ffmpeg resolution: `VOS_FFMPEG`/`VOS_FFPROBE` env →
 bundled `third_party/ffmpeg/` → PATH.

@@ -98,6 +98,7 @@ def cmd_dub(args):
             max_speed=float(cfg["max_speed"]),
             force=args.force,
             work_root=Path(work) if work else None,
+            cleanup=bool(cfg["cleanup_work"]) and not args.keep_work,
         )
         if args.translate_only:
             wd = p.workdir()
@@ -163,6 +164,8 @@ def main():
     p.add_argument("--gain-db", type=float, default=None, help="fixed level offset (with --level fixed)")
     p.add_argument("--work-dir", default=None,
                    help="folder for work/cache dirs (default from settings; else beside the source)")
+    p.add_argument("--keep-work", action="store_true",
+                   help="keep the work dir even after a verified success")
     p.add_argument("--force", action="store_true", help="ignore checkpoints, rebuild")
     p.add_argument("--translate-only", action="store_true")
     p.set_defaults(fn=cmd_dub)

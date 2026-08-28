@@ -39,6 +39,7 @@ DEFAULTS = {
     "lookahead_lines": 10,
     # work/cache dirs: "" = beside each source; a path moves them there (e.g. off a network drive)
     "work_dir": "",
+    "cleanup_work": True,     # delete a file's work dir after a verified success
     # dubbing defaults
     "target_lang": "pl",
     "voice": "pl-PL-ZofiaNeural",
