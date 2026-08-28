@@ -107,7 +107,7 @@ class FilesView(tb.Frame):
                 ref_info = it["info"]
             self.tree.item(p, tags=() if it["ok"] else ("warn",))
             vals = list(self.tree.item(p, "values"))
-            vals[2] = "ok" if it["ok"] else "structure ≠"
+            vals[2] = "ready" if it["ok"] else "structure ≠"
             self.tree.item(p, values=vals)
         self._refresh_summary()
         self.on_structure(ref_info)
