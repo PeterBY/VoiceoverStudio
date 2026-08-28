@@ -100,3 +100,16 @@ LANG3 = {
     "tr": "tur", "ja": "jpn", "ko": "kor", "zh": "chi", "nl": "dut", "sv": "swe",
     "no": "nor", "da": "dan",
 }
+
+# ISO 639-2/T codes where they diverge from the /B codes in LANG3 (files use either)
+LANG3_T = {"de": "deu", "fr": "fra", "cs": "ces", "sk": "slk", "nl": "nld", "zh": "zho"}
+
+
+def same_lang(tag, target_lang):
+    """True if a stream language tag (2/3-letter, possibly BCP-47 like 'pt-BR')
+    names `target_lang` (2-letter). 'und'/empty tags never match."""
+    t = (tag or "").strip().lower().split("-")[0]
+    tl = (target_lang or "").strip().lower()
+    if not t or t == "und" or not tl:
+        return False
+    return t in (tl, LANG3.get(tl, ""), LANG3_T.get(tl, ""))

@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import audio, ffbin, mix, mux, probe, srt
+from ..config import same_lang
 
 
 @dataclass
@@ -82,8 +83,9 @@ def run_job(p: JobParams, translator=None, progress=None, cancel=None):
     target_srt = wd / "target.srt"
     if p.external_srt:
         # 1-3) external ALREADY TRANSLATED subtitles: no extraction, no translation
+        # (SDH/markup cleanup still applies — external files are often SDH too)
         emit("extract", msg=f"external subtitles: {Path(p.external_srt).name}")
-        target_cues = srt.parse_srt(Path(p.external_srt))
+        target_cues = srt.clean_cues(srt.parse_srt(Path(p.external_srt)))
         report["cues"] = len(target_cues)
         report["cues_with_text"] = sum(1 for c in target_cues if c.text)
         report["translated"] = "external"
@@ -105,22 +107,28 @@ def run_job(p: JobParams, translator=None, progress=None, cancel=None):
         report["cues_with_text"] = n_text
         emit("extract", len(cues), len(cues), f"{len(cues)} cues ({n_text} with text)")
 
-        # 3) translate
-        cache = wd / "translations.json"
-        # "sdh": True stays in the stamp for cache compatibility (stripping is always on now)
-        tr_params = {"target_lang": p.target_lang, "sdh": True, "source": f"s:{p.sub}"}
-        if cache.exists() and (p.force or not _params_ok(cache, tr_params)):
-            cache.unlink()
-        if translator is None:
-            raise ValueError("translator is required")
-        emit("translate", 0, n_text, "starting")
-        translations = translator.translate_cues(
-            cues, cache_path=cache,
-            progress=lambda d, t, m: emit("translate", d, t, m), cancel=cancel)
-        _write_params(cache, tr_params)
-        target_cues, missing = srt.build_target(cues, translations)
-        report["translated"] = n_text - len(missing)
-        report["untranslated"] = sorted(missing)
+        # 3) translate — unless the subtitle already is in the target language
+        if same_lang(info.subs[p.sub].lang, p.target_lang):
+            emit("translate", 1, 1, f"skipped — subtitles already {p.target_lang}")
+            target_cues = cues
+            report["translated"] = "same-language"
+            report["untranslated"] = []
+        else:
+            cache = wd / "translations.json"
+            # "sdh": True stays in the stamp for cache compatibility (stripping is always on now)
+            tr_params = {"target_lang": p.target_lang, "sdh": True, "source": f"s:{p.sub}"}
+            if cache.exists() and (p.force or not _params_ok(cache, tr_params)):
+                cache.unlink()
+            if translator is None:
+                raise ValueError("translator is required")
+            emit("translate", 0, n_text, "starting")
+            translations = translator.translate_cues(
+                cues, cache_path=cache,
+                progress=lambda d, t, m: emit("translate", d, t, m), cancel=cancel)
+            _write_params(cache, tr_params)
+            target_cues, missing = srt.build_target(cues, translations)
+            report["translated"] = n_text - len(missing)
+            report["untranslated"] = sorted(missing)
     target_text = srt.format_srt(target_cues)
     # write only on change: an untouched mtime lets downstream checkpoints hold
     if not target_srt.exists() or target_srt.read_text(encoding="utf-8") != target_text:

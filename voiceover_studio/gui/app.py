@@ -143,7 +143,9 @@ class App(tb.Window):
             messagebox.showwarning("Voiceover Studio",
                                    "External subtitles work with a single file only.")
             return
-        if not p["external_srt"] and not self.cfg.get("api_url"):
+        needs_translation = (not p["external_srt"]
+                             and not config.same_lang(p["sub_lang"], p["target_lang"]))
+        if needs_translation and not self.cfg.get("api_url"):
             messagebox.showwarning("Voiceover Studio", "Translation API is not configured.")
             self.open_settings()
             return
@@ -156,7 +158,7 @@ class App(tb.Window):
         except OSError:
             pass
         translator = None
-        if not p["external_srt"]:
+        if needs_translation:
             try:
                 translator = Translator(
                     api_url=self.cfg["api_url"], api_key=self.cfg["api_key"],
@@ -184,6 +186,8 @@ class App(tb.Window):
         self.queue_view.log_line(f"Start: {len(jobs)} file(s), voice {p['voice']}, "
                                  f"ducking {'ratio ' + str(p['duck_ratio']) if p['duck'] else 'off'}, "
                                  f"format {p['dub_format']}.")
+        if not needs_translation and not p["external_srt"]:
+            self.queue_view.log_line("Subtitles already in target language — translation skipped.")
         self.nb.select(self.queue_view)
         self.runner.start()
 

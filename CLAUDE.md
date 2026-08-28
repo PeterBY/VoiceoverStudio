@@ -44,7 +44,10 @@ build time). Release procedure: bump `__version__` → commit → `git tag v<X.Y
 
 - All GUI text is **English**; labels terse — no parenthetical explanations in widget labels.
 - "External subtitles" = an ALREADY TRANSLATED file: selecting it skips extraction and translation.
-- SDH cleanup (noise tags, speaker labels) is ALWAYS on — not an option.
+- A source subtitle whose language tag matches the target language skips translation (and the
+  API-config requirement) automatically — `config.same_lang` handles 639-2 B/T variants; `und` never matches.
+- SDH cleanup (noise tags, speaker labels) is ALWAYS on — not an option; it applies to external
+  subtitles too.
 
 ## Testing
 

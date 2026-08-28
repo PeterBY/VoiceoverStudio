@@ -59,14 +59,21 @@ def cmd_dub(args):
     cfg = config.load_settings()
     if args.translate_only and args.srt:
         sys.exit("--translate-only makes no sense with --srt (already translated)")
+    target_lang = args.lang or cfg["target_lang"]
     translator = None
-    if not args.srt:
-        translator = translate.Translator(
-            api_url=cfg["api_url"], api_key=cfg["api_key"], model=cfg["api_model"],
-            style=cfg["api_style"], prompt_template=cfg["prompt_template"],
-            target_lang=args.lang or cfg["target_lang"],
-            batch_size=int(cfg["batch_size"]), context_lines=int(cfg["context_lines"]),
-        )
+
+    def get_translator():
+        # lazy: a target-language subtitle needs no translation and no API config
+        nonlocal translator
+        if translator is None:
+            translator = translate.Translator(
+                api_url=cfg["api_url"], api_key=cfg["api_key"], model=cfg["api_model"],
+                style=cfg["api_style"], prompt_template=cfg["prompt_template"],
+                target_lang=target_lang,
+                batch_size=int(cfg["batch_size"]), context_lines=int(cfg["context_lines"]),
+            )
+        return translator
+
     cancel = threading.Event()
     for f in args.files:
         src = Path(f)
@@ -77,7 +84,7 @@ def cmd_dub(args):
             sub=args.sub if args.srt is None else -1,
             external_srt=Path(args.srt) if args.srt else None,
             voice=args.voice or cfg["voice"],
-            target_lang=args.lang or cfg["target_lang"],
+            target_lang=target_lang,
             keep_audio=_parse_keep(args.keep_audio, info.audios),
             keep_subs=_parse_keep(args.keep_subs, info.subs),
             dub_format=args.format or cfg["dub_format"],
@@ -96,13 +103,17 @@ def cmd_dub(args):
             from voiceover_studio.core import ffbin
             ffbin.run(["-y", "-v", "error", "-i", str(src), "-map", f"0:s:{p.sub}", str(src_srt)])
             cues = srt.clean_cues(srt.parse_srt(src_srt))
-            tr = translator.translate_cues(cues, cache_path=wd / "translations.json",
-                                           progress=lambda d, t, m: _progress("translate", d, t, m))
+            tr = get_translator().translate_cues(
+                cues, cache_path=wd / "translations.json",
+                progress=lambda d, t, m: _progress("translate", d, t, m))
             target_cues, missing = srt.build_target(cues, tr)
             (wd / "target.srt").write_text(srt.format_srt(target_cues), encoding="utf-8")
             print(f"\n{src.name}: translated {len(tr)}, missing {len(missing)} -> {wd / 'target.srt'}")
             continue
-        report = job.run_job(p, translator=translator, progress=_progress, cancel=cancel)
+        needs_translation = args.srt is None and not (
+            0 <= p.sub < len(info.subs) and config.same_lang(info.subs[p.sub].lang, target_lang))
+        report = job.run_job(p, translator=get_translator() if needs_translation else None,
+                             progress=_progress, cancel=cancel)
         v = report["verify"]
         print(f"\n=== {src.name} ===")
         print(f"out: {report['out']}")

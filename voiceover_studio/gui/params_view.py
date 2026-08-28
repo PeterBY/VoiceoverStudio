@@ -257,9 +257,11 @@ class ParamsView(tb.Frame):
         ratio = float(self.duck_spin.get()) if preset == "custom" else (
             preset if isinstance(preset, float) else float(self.cfg["duck_ratio"]))
         ext = self.ext_srt_var.get().strip()
+        sub = self.sub_cb.current() if not ext and self.sub_cb.current() < len(self.info.subs) else -1
         return {
             "audio": self.audio_cb.current(),
-            "sub": self.sub_cb.current() if not ext and self.sub_cb.current() < len(self.info.subs) else -1,
+            "sub": sub,
+            "sub_lang": self.info.subs[sub].lang if sub >= 0 else "",
             "external_srt": ext or None,
             "voice": self.current_voice(),
             "target_lang": self.lang_cb.get(),

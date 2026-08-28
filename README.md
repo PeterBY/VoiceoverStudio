@@ -25,6 +25,8 @@ subtitle tracks you chose to keep.
   (or a fixed ±dB offset, your choice)
 - Ducking presets or off; dub track as **stereo downmix** or the **original channel layout**
 - **External subtitles mode**: feed an already-translated `.srt` and skip the translation API entirely
+- **No pointless translation**: if the selected subtitle track is already in the target language,
+  translation (and the AI config) is skipped automatically
 - Voice preview button; result is verified automatically (duration match, audible tail)
 - GUI (Tkinter + ttkbootstrap) and a CLI twin over the same core
 
@@ -53,7 +55,8 @@ Windows installer).
 Subtitle translation needs access to an AI model through an **OpenAI-compatible API**. Any provider
 works: a commercial API, a self-hosted server (Ollama, LM Studio, llama.cpp, vLLM), or a free tier —
 see e.g. [freellm.net](https://freellm.net/) for a catalog of free LLM APIs and keys. No AI access
-is needed for the external-subtitles mode (feeding an already translated `.srt`).
+is needed for the external-subtitles mode (feeding an already translated `.srt`) or when the
+selected subtitle track is already in the target language.
 
 ⚙ Settings in the app: AI API host, key and model (any OpenAI-compatible server — both
 `/v1/responses` and `/v1/chat/completions` are supported, auto-detected), plus the translation
