@@ -159,8 +159,8 @@ class App(tb.Window):
             self.open_settings()
             return
         # persist chosen params as new defaults
-        for k in ("voice", "target_lang", "dub_format", "duck", "duck_ratio",
-                  "level_mode", "fixed_gain_db"):
+        for k in ("voice", "target_lang", "dub_format", "duck", "duck_db",
+                  "level_mode", "gap_db", "fixed_gain_db"):
             self.cfg[k] = p[k]
         try:
             config.save_settings(self.cfg)
@@ -187,17 +187,18 @@ class App(tb.Window):
                 external_srt=Path(p["external_srt"]) if p["external_srt"] else None,
                 voice=p["voice"], target_lang=p["target_lang"],
                 keep_audio=p["keep_audio"], keep_subs=p["keep_subs"],
-                dub_format=p["dub_format"], duck=p["duck"], duck_ratio=p["duck_ratio"],
-                level_mode=p["level_mode"], level_k=float(self.cfg["level_k"]),
+                dub_format=p["dub_format"], duck=p["duck"], duck_db=p["duck_db"],
+                level_mode=p["level_mode"], gap_db=p["gap_db"],
                 fixed_gain_db=p["fixed_gain_db"], max_speed=float(self.cfg["max_speed"]),
                 work_root=Path(self.cfg["work_dir"]) if str(self.cfg.get("work_dir", "")).strip() else None,
                 cleanup=bool(self.cfg["cleanup_work"])))
             self._job_paths.append(path)
         self.runner = BatchRunner(jobs, translator)
         self.queue_view.set_running(True)
+        duck_desc = ("auto" if p["level_mode"] == "gap"
+                     else f"-{p['duck_db']:g} dB") if p["duck"] else "off"
         self.queue_view.log_line(f"Start: {len(jobs)} file(s), voice {p['voice']}, "
-                                 f"ducking {'ratio ' + str(p['duck_ratio']) if p['duck'] else 'off'}, "
-                                 f"format {p['dub_format']}.")
+                                 f"ducking {duck_desc}, format {p['dub_format']}.")
         if not needs_translation and not p["external_srt"]:
             self.queue_view.log_line("Subtitles already in target language — translation skipped.")
         self.nb.select(self.queue_view)

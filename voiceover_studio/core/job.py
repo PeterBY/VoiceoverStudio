@@ -27,9 +27,9 @@ class JobParams:
     keep_subs: list = field(default_factory=list)    # 0:s:N indexes copied into the output
     dub_format: str = "stereo"      # stereo | original (source layout)
     duck: bool = True
-    duck_ratio: float = 2.0
-    level_mode: str = "track"       # track | fixed | off
-    level_k: float = 0.6
+    duck_db: float = 6.0            # constant bed duck depth (fixed/off level modes)
+    level_mode: str = "gap"         # gap | fixed | off
+    gap_db: float = 8.0             # gap mode: narrator sits this far above the scene bed
     fixed_gain_db: float = 0.0
     max_speed: float = 1.0          # locked default: no speed-up
     force: bool = False
@@ -166,49 +166,69 @@ def run_job(p: JobParams, translator=None, progress=None, cancel=None):
     if not target_srt.exists() or target_srt.read_text(encoding="utf-8") != target_text:
         target_srt.write_text(target_text, encoding="utf-8")
 
-    # 4) loudness reference (only for level tracking)
-    gains, ref_wav = None, wd / "ref.wav"
-    if p.level_mode == "track":
+    # 4) loudness plan: gap mode measures scene + narrator and derives both the
+    # narrator gains and the per-cue duck depths; fixed/off use constants
+    gains, ducks, ref_wav = None, None, wd / "ref.wav"
+    if p.level_mode == "gap":
         if p.force or not _fresh(ref_wav):
             emit("tts", msg="extracting loudness reference")
             mix.extract_ref(p.src, base.type_index, base.channels, ref_wav, cancel=cancel)
-        gains, lt_stats = audio.compute_level_gains(
-            target_cues, ref_wav, k=p.level_k, csv_path=wd / "leveltrack.csv")
+        gains, ducks, lt_stats = audio.compute_gap_plan(
+            target_cues, ref_wav, wd / "clips", p.voice, gap_db=p.gap_db,
+            csv_path=wd / "leveltrack.csv",
+            progress=lambda d, t, m: emit("tts", d, t, m), cancel=cancel)
         report["leveltrack"] = lt_stats
     elif p.level_mode == "fixed" and abs(p.fixed_gain_db) > 0.01:
         gains = {c.num: 10.0 ** (p.fixed_gain_db / 20.0) for c in target_cues}
+    if p.duck and ducks is None:
+        ducks = {c.num: p.duck_db for c in target_cues}
+    elif not p.duck:
+        ducks = None
 
     # 5) synthesize + place
     dub_wav = wd / "dub.wav"
-    duck_mask = wd / "duckmask.wav"  # speech envelope for the mixer's ducking
-    wav_params = {"voice": p.voice, "level_mode": p.level_mode, "level_k": p.level_k,
-                  "fixed_gain_db": p.fixed_gain_db, "max_speed": p.max_speed}
-    if (p.force or not _params_ok(dub_wav, wav_params) or not duck_mask.exists()
-            or not _fresh(dub_wav, target_srt, ref_wav if p.level_mode == "track" else None)):
-        master, mask, stats = audio.build_track(
+    duck_env = wd / "duckenv.wav"  # bed-gain envelope for the duck pass
+    wav_params = {"voice": p.voice, "level_mode": p.level_mode, "gap_db": p.gap_db,
+                  "fixed_gain_db": p.fixed_gain_db, "duck": p.duck, "duck_db": p.duck_db,
+                  "max_speed": p.max_speed}
+    if (p.force or not _params_ok(dub_wav, wav_params) or not duck_env.exists()
+            or not _fresh(dub_wav, target_srt, ref_wav if p.level_mode == "gap" else None)):
+        master, env, stats = audio.build_track(
             target_cues, wd / "clips", p.voice, info.duration,
-            gains=gains, max_speed=p.max_speed,
+            gains=gains, ducks=ducks, max_speed=p.max_speed,
             progress=lambda d, t, m: emit("tts", d, t, m), cancel=cancel)
         audio.write_wav_mono(dub_wav, master)
-        audio.write_wav_mono(duck_mask, mask, sr=audio.MASK_SR)
+        audio.write_wav_mono(duck_env, env, sr=audio.MASK_SR)
         _write_params(dub_wav, wav_params)
         report["placement"] = stats
     else:
         emit("tts", 1, 1, "dub.wav up to date")
 
-    # 6) mix into an audio FILE (two-stage build: inline mux truncated audio once)
+    # 6) duck the bed in numpy, then mix into an audio FILE (two-stage build:
+    # inline mux truncated audio once)
+    bed_ducked = None
+    if p.duck:
+        bed = wd / "bed.wav"
+        bed_params = {"audio": p.audio}
+        if p.force or not _params_ok(bed, bed_params) or not _fresh(bed):
+            emit("mix", msg="extracting bed")
+            mix.extract_bed(p.src, base.type_index, base.channels, bed, cancel=cancel)
+            _write_params(bed, bed_params)
+        bed_ducked = wd / "bed_ducked.wav"
+        if p.force or not _fresh(bed_ducked, bed, duck_env):
+            emit("mix", msg="applying duck envelope")
+            audio.apply_envelope(bed, duck_env, bed_ducked, cancel=cancel)
     dub_track = wd / "dub_track.mka"
-    # duck_mode key: envelope ducking must not reuse a track mixed by an older
+    # duck_mode key: the numpy-bed graph must not reuse a track mixed by an older
     # duck graph with numerically identical params
-    mix_params = {"audio": p.audio, "duck": p.duck, "duck_ratio": p.duck_ratio,
-                  "duck_mode": "envelope-gate", "dub_format": p.dub_format}
+    mix_params = {"audio": p.audio, "duck": p.duck,
+                  "duck_mode": "envelope-bed", "dub_format": p.dub_format}
     if (p.force or not _params_ok(dub_track, mix_params)
-            or not _fresh(dub_track, dub_wav, duck_mask)):
+            or not _fresh(dub_track, dub_wav, bed_ducked)):
         emit("mix", msg=f"{mix.layout_kind(base.channels)} -> {p.dub_format}"
                         f"{' + duck' if p.duck else ''}")
         mix.build_dub_track(p.src, base.type_index, dub_wav, dub_track,
-                            channels=base.channels, duck=p.duck, duck_ratio=p.duck_ratio,
-                            duck_mask=duck_mask if p.duck else None,
+                            channels=base.channels, bed_wav=bed_ducked,
                             out_format=p.dub_format, cancel=cancel)
         _write_params(dub_track, mix_params)
 

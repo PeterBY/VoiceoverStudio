@@ -3,6 +3,7 @@
 Env overrides (dev): AI_APIURL, AI_APIKEY, AI_MODEL, AI_STYLE (auto|responses|chat).
 """
 import json
+import math
 import os
 from pathlib import Path
 
@@ -45,9 +46,9 @@ DEFAULTS = {
     "voice": "pl-PL-ZofiaNeural",
     "dub_format": "stereo",   # stereo | original
     "duck": True,
-    "duck_ratio": 2.0,   # envelope duck: original at 1/ratio under speech (2.0 = -6 dB)
-    "level_mode": "track",    # track | fixed | off
-    "level_k": 0.6,
+    "duck_db": 6.0,           # constant bed duck depth (fixed/off level modes)
+    "level_mode": "gap",      # gap | fixed | off
+    "gap_db": 8.0,            # gap mode: narrator sits this far above the scene bed
     "fixed_gain_db": 0.0,
     "max_speed": 1.0,         # locked: no speed-up
 }
@@ -74,14 +75,23 @@ def load_dotenv(path=".env"):
 
 
 def load_settings():
-    cfg = dict(DEFAULTS)
+    cfg, loaded = dict(DEFAULTS), {}
     if SETTINGS_PATH.is_file():
         try:
-            cfg.update(json.loads(SETTINGS_PATH.read_text(encoding="utf-8")))
+            loaded = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+            cfg.update(loaded)
         except (OSError, json.JSONDecodeError):
             pass
     if cfg.get("context_lines") in (6, "6"):
         cfg["context_lines"] = DEFAULTS["context_lines"]  # pre-brief default; never UI-exposed
+    # 0.2.x migration: ratio-based duck + median level tracking became the gap model
+    if "duck_db" not in loaded and "duck_ratio" in loaded:
+        try:
+            cfg["duck_db"] = round(20 * math.log10(max(1.0, float(loaded["duck_ratio"]))), 1)
+        except (TypeError, ValueError):
+            pass
+    if cfg.get("level_mode") not in ("gap", "fixed", "off"):
+        cfg["level_mode"] = "gap"
     for env_key, cfg_key in _ENV_MAP.items():
         if os.environ.get(env_key):
             cfg[cfg_key] = os.environ[env_key]

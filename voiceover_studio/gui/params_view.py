@@ -27,8 +27,8 @@ def find_ffplay():
         pass
     return None
 
-DUCK_PRESETS = [("Off", None), ("Soft (1.5)", 1.5), ("Medium (2.0)", 2.0),
-                ("Strong (4.0)", 4.0), ("Custom", "custom")]
+DUCK_PRESETS = [("Off", None), ("Soft -4 dB", 4.0), ("Medium -6 dB", 6.0),
+                ("Strong -9 dB", 9.0), ("Custom", "custom")]
 PREVIEW_TEXT = {
     "pl": "Cześć! Tak będzie brzmiał lektor w tym filmie.",
     "ru": "Привет! Так будет звучать закадровый голос.",
@@ -98,28 +98,35 @@ class ParamsView(tb.Frame):
         # --- mix ------------------------------------------------------------
         mf = tb.Labelframe(right, text="Mixing", padding=10)
         mf.pack(fill="both", expand=True)
-        tb.Label(mf, text="Ducking:").grid(row=0, column=0, sticky="w")
-        self.duck_cb = tb.Combobox(mf, values=[n for n, _ in DUCK_PRESETS],
-                                   state="readonly", width=16)
-        self.duck_cb.grid(row=0, column=1, sticky="w", padx=4, pady=2)
-        self.duck_cb.bind("<<ComboboxSelected>>", lambda e: self._duck_changed())
-        self.duck_spin = tb.Spinbox(mf, from_=1.1, to=20.0, increment=0.1, width=6)
-        self.duck_spin.grid(row=0, column=2, sticky="w")
-        self._set_duck_from_cfg()
-
-        tb.Label(mf, text="Narrator volume:").grid(row=1, column=0, sticky="w", pady=(8, 0))
-        self.level_var = tb.StringVar(value=self.cfg["level_mode"])
-        tb.Radiobutton(mf, text="Scene-tracked", value="track",
-                       variable=self.level_var).grid(row=1, column=1, columnspan=2,
-                                                     sticky="w", pady=(8, 0))
-        row2 = tb.Frame(mf)
-        row2.grid(row=2, column=1, columnspan=2, sticky="w")
-        tb.Radiobutton(row2, text="Fixed,", value="fixed",
-                       variable=self.level_var).pack(side="left")
-        self.gain_spin = tb.Spinbox(row2, from_=-12.0, to=12.0, increment=0.5, width=6)
+        tb.Label(mf, text="Narrator level:").grid(row=0, column=0, sticky="w")
+        self.level_var = tb.StringVar(
+            value=self.cfg["level_mode"] if self.cfg["level_mode"] in ("gap", "fixed") else "gap")
+        row_auto = tb.Frame(mf)
+        row_auto.grid(row=0, column=1, columnspan=2, sticky="w")
+        tb.Radiobutton(row_auto, text="Auto, over scene", value="gap",
+                       variable=self.level_var, command=self._level_changed).pack(side="left")
+        self.gap_spin = tb.Spinbox(row_auto, from_=0.0, to=60.0, increment=0.5, width=6)
+        self.gap_spin.set(str(self.cfg["gap_db"]))
+        self.gap_spin.pack(side="left", padx=4)
+        tb.Label(row_auto, text="dB").pack(side="left")
+        row_fixed = tb.Frame(mf)
+        row_fixed.grid(row=1, column=1, columnspan=2, sticky="w")
+        tb.Radiobutton(row_fixed, text="Fixed,", value="fixed",
+                       variable=self.level_var, command=self._level_changed).pack(side="left")
+        self.gain_spin = tb.Spinbox(row_fixed, from_=-12.0, to=12.0, increment=0.5, width=6)
         self.gain_spin.set(str(self.cfg["fixed_gain_db"]))
         self.gain_spin.pack(side="left", padx=4)
-        tb.Label(row2, text="dB").pack(side="left")
+        tb.Label(row_fixed, text="dB").pack(side="left")
+
+        tb.Label(mf, text="Ducking:").grid(row=2, column=0, sticky="w", pady=(8, 0))
+        self.duck_cb = tb.Combobox(mf, values=[n for n, _ in DUCK_PRESETS],
+                                   state="readonly", width=16)
+        self.duck_cb.grid(row=2, column=1, sticky="w", padx=4, pady=(8, 0))
+        self.duck_cb.bind("<<ComboboxSelected>>", lambda e: self._duck_changed())
+        self.duck_spin = tb.Spinbox(mf, from_=1.0, to=60.0, increment=0.5, width=6)
+        self.duck_spin.grid(row=2, column=2, sticky="w", pady=(8, 0))
+        self._set_duck_from_cfg()
+        self._level_changed()
 
         tb.Label(mf, text="Track format:").grid(row=3, column=0, sticky="w", pady=(8, 0))
         self.fmt_var = tb.StringVar(value=self.cfg["dub_format"])
@@ -148,10 +155,10 @@ class ParamsView(tb.Frame):
         if not self.cfg["duck"]:
             self.duck_cb.set("Off")
         else:
-            r = float(self.cfg["duck_ratio"])
-            named = {1.5: "Soft (1.5)", 2.0: "Medium (2.0)", 4.0: "Strong (4.0)"}
-            self.duck_cb.set(named.get(r, "Custom"))
-        self.duck_spin.set(str(self.cfg["duck_ratio"]))
+            d = float(self.cfg["duck_db"])
+            named = {4.0: "Soft -4 dB", 6.0: "Medium -6 dB", 9.0: "Strong -9 dB"}
+            self.duck_cb.set(named.get(d, "Custom"))
+        self.duck_spin.set(str(self.cfg["duck_db"]))
         self._duck_changed()
 
     def _duck_changed(self):
@@ -161,6 +168,19 @@ class ParamsView(tb.Frame):
             self.duck_spin.configure(state="normal")
             self.duck_spin.set(str(preset))
             self.duck_spin.configure(state="disabled")
+
+    def _level_changed(self):
+        gap = self.level_var.get() == "gap"
+        self.gap_spin.configure(state="normal" if gap else "disabled")
+        self.gain_spin.configure(state="disabled" if gap else "normal")
+        if gap:
+            # ducking is derived per cue by the gap plan — nothing to pick
+            self.duck_cb.set("Auto")
+            self.duck_cb.configure(state="disabled")
+            self.duck_spin.configure(state="disabled")
+        else:
+            self.duck_cb.configure(state="readonly")
+            self._set_duck_from_cfg()
 
     # ---- structure ---------------------------------------------------------
 
@@ -252,10 +272,14 @@ class ParamsView(tb.Frame):
 
     def params(self):
         """Collected UI state -> dict for JobParams / settings persistence."""
-        preset = dict(DUCK_PRESETS).get(self.duck_cb.get())
-        duck = preset is not None
-        ratio = float(self.duck_spin.get()) if preset == "custom" else (
-            preset if isinstance(preset, float) else float(self.cfg["duck_ratio"]))
+        mode = self.level_var.get()
+        if mode == "gap":
+            duck, duck_db = True, float(self.cfg["duck_db"])
+        else:
+            preset = dict(DUCK_PRESETS).get(self.duck_cb.get())
+            duck = preset is not None
+            duck_db = float(self.duck_spin.get()) if preset == "custom" else (
+                preset if isinstance(preset, float) else float(self.cfg["duck_db"]))
         ext = self.ext_srt_var.get().strip()
         sub = self.sub_cb.current() if not ext and self.sub_cb.current() < len(self.info.subs) else -1
         return {
@@ -269,7 +293,8 @@ class ParamsView(tb.Frame):
             "keep_subs": list(self.keep_subs.curselection()),
             "dub_format": self.fmt_var.get(),
             "duck": duck,
-            "duck_ratio": ratio,
-            "level_mode": self.level_var.get(),
+            "duck_db": duck_db,
+            "level_mode": mode,
+            "gap_db": float(self.gap_spin.get()),
             "fixed_gain_db": float(self.gain_spin.get()),
         }

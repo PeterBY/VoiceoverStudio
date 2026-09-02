@@ -24,9 +24,10 @@ subtitle tracks you chose to keep.
 - **Resume for free**: translations and synthesized lines are cached in a per-file `.work/` folder —
   an interrupted or failed run resumes where it stopped; after a verified success the folder is
   cleaned up (disable in settings to keep caches for parameter tweaking)
-- **Narrator volume tracking**: the voiceover follows the loudness of the original scene
-  (or a fixed ±dB offset, your choice)
-- Ducking presets or off; dub track as **stereo downmix** or the **original channel layout**
+- **Auto leveling**: one knob — how far the narrator sits above the scene. Loud scene: the
+  original is ducked under the voice; quiet scene: the voice comes down to match. Or a fixed
+  ±dB narrator offset with preset ducking depths, your choice
+- Dub track as **stereo downmix** or the **original channel layout**
 - **External subtitles mode**: feed an already-translated `.srt` and skip the translation API entirely
 - **No pointless translation**: if the selected subtitle track is already in the target language,
   translation (and the AI config) is skipped automatically
