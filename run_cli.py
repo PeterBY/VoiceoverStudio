@@ -94,6 +94,8 @@ def cmd_dub(args):
             duck_db=float(args.duck_db if args.duck_db is not None else cfg["duck_db"]),
             level_mode=args.level or cfg["level_mode"],
             gap_db=float(args.gap_db if args.gap_db is not None else cfg["gap_db"]),
+            legacy_ratio=float(args.legacy_ratio if args.legacy_ratio is not None
+                               else cfg["legacy_ratio"]),
             fixed_gain_db=float(args.gain_db if args.gain_db is not None else cfg["fixed_gain_db"]),
             max_speed=float(cfg["max_speed"]),
             force=args.force,
@@ -161,9 +163,11 @@ def main():
     p.add_argument("--no-duck", action="store_const", const=True, default=None)
     p.add_argument("--duck-db", type=float, default=None,
                    help="constant bed duck depth (with --level fixed/off)")
-    p.add_argument("--level", choices=["gap", "fixed", "off"], default=None)
+    p.add_argument("--level", choices=["gap", "fixed", "off", "legacy"], default=None)
     p.add_argument("--gap-db", type=float, default=None,
                    help="narrator level over the scene bed (with --level gap)")
+    p.add_argument("--legacy-ratio", type=float, default=None,
+                   help="0.1.0 compressor duck ratio (with --level legacy)")
     p.add_argument("--gain-db", type=float, default=None, help="fixed level offset (with --level fixed)")
     p.add_argument("--work-dir", default=None,
                    help="folder for work/cache dirs (default from settings; else beside the source)")

@@ -180,6 +180,43 @@ def compute_gap_plan(cues, ref_wav, cache_dir, voice, *, gap_db=8.0,
     return gains, ducks, stats
 
 
+def compute_level_gains(cues, ref_wav, k=0.6, csv_path=None):
+    """0.1.0 'Legacy' leveling, kept verbatim for A/B listening: per-cue narrator
+    gain = k * (scene level - episode median), clamped [-8, +4] dB, median-3
+    smoothed within scenes. Relative by design: a quiet scene lowers the narrator
+    only as far as it sits under the episode median (the gap plan replaced this)."""
+    GMIN, GMAX, PAD = -8.0, 4.0, 0.4
+    y, sr = read_wav_mono(ref_wav)
+    lseg = []
+    for c in cues:
+        a = max(0, int((c.start - PAD) * sr))
+        b = min(len(y), int((c.end + PAD) * sr))
+        lseg.append(_active_level(y[a:b], sr))
+    valid = [x for x in lseg if x is not None]
+    lref = float(np.median(valid)) if valid else 0.0
+    raw = [0.0 if x is None else max(GMIN, min(GMAX, k * (x - lref))) for x in lseg]
+    sm = list(raw)
+    for g in _scene_groups(cues):
+        for j in range(len(g)):
+            sm[g[j]] = float(np.median([raw[g[m]] for m in range(max(0, j - 1), min(len(g), j + 2))]))
+    if csv_path:
+        with open(csv_path, "w", newline="") as f:
+            wr = csv.writer(f)
+            wr.writerow(["num", "start", "end", "L_seg_db", "gain_raw_db", "gain_smoothed_db", "note"])
+            for i, c in enumerate(cues):
+                note = "silent ref" if lseg[i] is None else ""
+                if raw[i] in (GMIN, GMAX):
+                    note = (note + " clamped").strip()
+                wr.writerow([c.num, round(c.start, 2), round(c.end, 2),
+                             "" if lseg[i] is None else round(lseg[i], 1),
+                             round(raw[i], 2), round(sm[i], 2), note])
+    stats = {"L_ref_db": round(lref, 1),
+             "gain_min_db": round(min(sm), 2) if sm else 0,
+             "gain_max_db": round(max(sm), 2) if sm else 0,
+             "silent_ref": sum(1 for x in lseg if x is None)}
+    return {cues[i].num: 10.0 ** (sm[i] / 20.0) for i in range(len(cues))}, stats
+
+
 def _gain_envelope(items, total_s, ramp_in=0.15, ramp_out=0.3):
     """Bed-gain envelope @MASK_SR: 1.0 outside narrator speech, 10^(-duck/20)
     under it, linear ramps at the edges; overlaps keep the deeper duck. Built

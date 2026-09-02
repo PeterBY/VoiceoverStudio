@@ -160,7 +160,7 @@ class App(tb.Window):
             return
         # persist chosen params as new defaults
         for k in ("voice", "target_lang", "dub_format", "duck", "duck_db",
-                  "level_mode", "gap_db", "fixed_gain_db"):
+                  "legacy_ratio", "level_mode", "gap_db", "fixed_gain_db"):
             self.cfg[k] = p[k]
         try:
             config.save_settings(self.cfg)
@@ -189,14 +189,18 @@ class App(tb.Window):
                 keep_audio=p["keep_audio"], keep_subs=p["keep_subs"],
                 dub_format=p["dub_format"], duck=p["duck"], duck_db=p["duck_db"],
                 level_mode=p["level_mode"], gap_db=p["gap_db"],
+                legacy_ratio=p["legacy_ratio"],
                 fixed_gain_db=p["fixed_gain_db"], max_speed=float(self.cfg["max_speed"]),
                 work_root=Path(self.cfg["work_dir"]) if str(self.cfg.get("work_dir", "")).strip() else None,
                 cleanup=bool(self.cfg["cleanup_work"])))
             self._job_paths.append(path)
         self.runner = BatchRunner(jobs, translator)
         self.queue_view.set_running(True)
-        duck_desc = ("auto" if p["level_mode"] == "gap"
-                     else f"-{p['duck_db']:g} dB") if p["duck"] else "off"
+        duck_desc = "off"
+        if p["duck"]:
+            duck_desc = {"gap": f"auto gap {p['gap_db']:g} dB",
+                         "legacy": f"legacy ratio {p['legacy_ratio']:g}",
+                         }.get(p["level_mode"], f"-{p['duck_db']:g} dB")
         self.queue_view.log_line(f"Start: {len(jobs)} file(s), voice {p['voice']}, "
                                  f"ducking {duck_desc}, format {p['dub_format']}.")
         if not needs_translation and not p["external_srt"]:

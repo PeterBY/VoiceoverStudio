@@ -20,6 +20,11 @@ from . import ffbin
 DOWNMIX = ("pan=stereo|FL=0.4142*FL+0.2929*FC+0.2929*BL|"
            "FR=0.4142*FR+0.2929*FC+0.2929*BR,alimiter=limit=0.95")
 
+# 0.1.0 'Legacy' duck, kept verbatim for A/B listening only: a compressor keyed
+# off the narrator waveform. Documented-weak (edge-tts is quiet -> ~2 dB of real
+# duck, pumping on intra-phrase dips) — never the default.
+LEGACY_DUCK = "sidechaincompress=threshold=0.03:ratio={r}:attack=5:release=300"
+
 
 def layout_kind(channels):
     return "surround" if channels >= 6 else "stereo"
@@ -69,6 +74,32 @@ def _graph_surround(aidx, ducked, out_format):
     return ";".join(g), "[plst]", "256k"
 
 
+def _graph_surround_legacy(aidx, ratio, out_format):
+    """0.1.0 graph: FC compressed with the narrator as sidechain key."""
+    g = [f"[0:a:{aidx}]aresample=48000,aformat=channel_layouts=5.1,"
+         f"channelsplit=channel_layout=5.1[FL][FR][FC][LFE][BL][BR]",
+         "[1:a]aresample=48000,aformat=channel_layouts=mono,apad,asplit=2[sck][plc]",
+         f"[FC][sck]{LEGACY_DUCK.format(r=ratio)}[FCd]",
+         "[FCd][plc]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[FCn]",
+         "[FL][FR][FCn][LFE][BL][BR]join=inputs=6:channel_layout=5.1[plmix]"]
+    if out_format == "original":
+        return ";".join(g), "[plmix]", "448k"
+    g.append(f"[plmix]{DOWNMIX}[plst]")
+    return ";".join(g), "[plst]", "256k"
+
+
+def _graph_stereo_legacy(aidx, ratio):
+    g = [f"[0:a:{aidx}]aresample=48000,aformat=channel_layouts=stereo,"
+         f"channelsplit=channel_layout=stereo[L][R]",
+         "[1:a]aresample=48000,aformat=channel_layouts=mono,apad,asplit=4[sl][sr][p1][p2]",
+         f"[L][sl]{LEGACY_DUCK.format(r=ratio)}[Ld]",
+         f"[R][sr]{LEGACY_DUCK.format(r=ratio)}[Rd]",
+         "[Ld][p1]amix=inputs=2:duration=first:normalize=0[Lm]",
+         "[Rd][p2]amix=inputs=2:duration=first:normalize=0[Rm]",
+         "[Lm][Rm]join=inputs=2:channel_layout=stereo,alimiter=limit=0.95[plst]"]
+    return ";".join(g), "[plst]", "256k"
+
+
 def _graph_stereo(aidx, ducked):
     """ducked: input 0 IS the pre-ducked stereo bed file (the source track isn't
     an input at all). Otherwise input 0 is the source."""
@@ -83,15 +114,21 @@ def _graph_stereo(aidx, ducked):
 
 
 def build_dub_track(src, audio_type_index, dub_wav, out_mka, *, channels,
-                    bed_wav=None, out_format="stereo", cancel=None):
+                    bed_wav=None, legacy_ratio=None, out_format="stereo", cancel=None):
     """Mix the narrator WAV over the chosen original track -> AC3 in .mka.
 
     bed_wav: pre-ducked bed from audio.apply_envelope (FC mono for surround, the
-    stereo pair for stereo); None = no ducking.
+    stereo pair for stereo); None = no ducking. legacy_ratio: use the 0.1.0
+    sidechain-compressor duck instead (bed_wav must be None then).
     The track is built to a FILE first; muxing is a separate copy step — producing
     it inline with -c:v copy silently truncated audio in the legacy pipeline.
     """
-    if layout_kind(channels) == "surround":
+    surround = layout_kind(channels) == "surround"
+    if legacy_ratio is not None:
+        graph, out_lbl, br = (_graph_surround_legacy(audio_type_index, legacy_ratio, out_format)
+                              if surround else _graph_stereo_legacy(audio_type_index, legacy_ratio))
+        inputs = [str(src), str(dub_wav)]
+    elif surround:
         graph, out_lbl, br = _graph_surround(audio_type_index, bed_wav is not None, out_format)
         inputs = [str(src), str(dub_wav)] + ([str(bed_wav)] if bed_wav else [])
     else:

@@ -28,8 +28,9 @@ class JobParams:
     dub_format: str = "stereo"      # stereo | original (source layout)
     duck: bool = True
     duck_db: float = 6.0            # constant bed duck depth (fixed/off level modes)
-    level_mode: str = "gap"         # gap | fixed | off
+    level_mode: str = "gap"         # gap | fixed | off | legacy (0.1.0 algorithm)
     gap_db: float = 8.0             # gap mode: narrator sits this far above the scene bed
+    legacy_ratio: float = 2.0       # legacy mode: sidechaincompress ratio
     fixed_gain_db: float = 0.0
     max_speed: float = 1.0          # locked default: no speed-up
     force: bool = False
@@ -178,11 +179,20 @@ def run_job(p: JobParams, translator=None, progress=None, cancel=None):
             csv_path=wd / "leveltrack.csv",
             progress=lambda d, t, m: emit("tts", d, t, m), cancel=cancel)
         report["leveltrack"] = lt_stats
+    elif p.level_mode == "legacy":
+        # 0.1.0 algorithm for A/B listening: median tracking + compressor duck
+        if p.force or not _fresh(ref_wav):
+            emit("tts", msg="extracting loudness reference")
+            mix.extract_ref(p.src, base.type_index, base.channels, ref_wav, cancel=cancel)
+        gains, lt_stats = audio.compute_level_gains(
+            target_cues, ref_wav, csv_path=wd / "leveltrack.csv")
+        report["leveltrack"] = lt_stats
     elif p.level_mode == "fixed" and abs(p.fixed_gain_db) > 0.01:
         gains = {c.num: 10.0 ** (p.fixed_gain_db / 20.0) for c in target_cues}
-    if p.duck and ducks is None:
+    legacy = p.level_mode == "legacy"
+    if p.duck and ducks is None and not legacy:
         ducks = {c.num: p.duck_db for c in target_cues}
-    elif not p.duck:
+    elif not p.duck or legacy:
         ducks = None
 
     # 5) synthesize + place
@@ -192,7 +202,8 @@ def run_job(p: JobParams, translator=None, progress=None, cancel=None):
                   "fixed_gain_db": p.fixed_gain_db, "duck": p.duck, "duck_db": p.duck_db,
                   "max_speed": p.max_speed}
     if (p.force or not _params_ok(dub_wav, wav_params) or not duck_env.exists()
-            or not _fresh(dub_wav, target_srt, ref_wav if p.level_mode == "gap" else None)):
+            or not _fresh(dub_wav, target_srt,
+                          ref_wav if p.level_mode in ("gap", "legacy") else None)):
         master, env, stats = audio.build_track(
             target_cues, wd / "clips", p.voice, info.duration,
             gains=gains, ducks=ducks, max_speed=p.max_speed,
@@ -207,7 +218,7 @@ def run_job(p: JobParams, translator=None, progress=None, cancel=None):
     # 6) duck the bed in numpy, then mix into an audio FILE (two-stage build:
     # inline mux truncated audio once)
     bed_ducked = None
-    if p.duck:
+    if p.duck and not legacy:
         bed = wd / "bed.wav"
         bed_params = {"audio": p.audio}
         if p.force or not _params_ok(bed, bed_params) or not _fresh(bed):
@@ -221,14 +232,17 @@ def run_job(p: JobParams, translator=None, progress=None, cancel=None):
     dub_track = wd / "dub_track.mka"
     # duck_mode key: the numpy-bed graph must not reuse a track mixed by an older
     # duck graph with numerically identical params
-    mix_params = {"audio": p.audio, "duck": p.duck,
-                  "duck_mode": "envelope-bed", "dub_format": p.dub_format}
+    legacy_ratio = p.legacy_ratio if (legacy and p.duck) else None
+    mix_params = {"audio": p.audio, "duck": p.duck, "legacy_ratio": legacy_ratio,
+                  "duck_mode": "legacy-sidechain" if legacy else "envelope-bed",
+                  "dub_format": p.dub_format}
     if (p.force or not _params_ok(dub_track, mix_params)
             or not _fresh(dub_track, dub_wav, bed_ducked)):
         emit("mix", msg=f"{mix.layout_kind(base.channels)} -> {p.dub_format}"
                         f"{' + duck' if p.duck else ''}")
         mix.build_dub_track(p.src, base.type_index, dub_wav, dub_track,
                             channels=base.channels, bed_wav=bed_ducked,
+                            legacy_ratio=legacy_ratio,
                             out_format=p.dub_format, cancel=cancel)
         _write_params(dub_track, mix_params)
 

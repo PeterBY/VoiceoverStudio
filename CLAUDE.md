@@ -32,10 +32,11 @@ Fully CPU/local except two network calls: edge-tts (free) and the translation AP
 - Ducking is **numpy-applied**: placement writes `duckenv.wav` (bed-gain envelope @8 kHz with
   per-cue depth, from where clips ACTUALLY landed); `audio.apply_envelope` multiplies the extracted
   bed (FC for 5.1, the stereo pair otherwise) and the ffmpeg graph only SUMS the pre-ducked bed
-  with the narrator — no gain math inside the graph. History (do not go back): a sidechain
-  compressor keyed off the quiet edge-tts waveform gave ~2 dB and pumped; `sidechaingate` depth is
-  a graph constant (can't track per cue); `amultiply` of unequal-length inputs hangs the ffmpeg 9
-  graph scheduler at EOF (flaky, surround→stereo).
+  with the narrator — no gain math inside the graph. History (never the default): a sidechain
+  compressor keyed off the quiet edge-tts waveform gave ~2 dB and pumped — it survives ONLY as the
+  explicit `level_mode=legacy` (GUI Legacy tab: verbatim 0.1.0 median tracking + sidechaincompress)
+  for A/B listening; `sidechaingate` depth is a graph constant (can't track per cue); `amultiply`
+  of unequal-length inputs hangs the ffmpeg 9 graph scheduler at EOF (flaky, surround→stereo).
 - **Build the dub audio to a file, then copy-mux** (`-max_interleave_delta 0`). Producing it inline in the
   same ffmpeg run as `-c:v copy` silently truncates audio (metadata full, packets end early).
 - Stereo downmix must be **clip-safe**: normalized `pan` coefficients + `alimiter` — a naive sum clips and
@@ -65,6 +66,8 @@ build time). Release procedure: bump `__version__` → commit → `git tag v<X.Y
 ## UI conventions
 
 - All GUI text is **English**; labels terse — no parenthetical explanations in widget labels.
+- Mixing is a 3-tab notebook — Auto (gap plan), Manual (fixed gain + constant duck),
+  Legacy (0.1.0) — the selected tab IS the level mode; core keeps `off` for the CLI only.
 - "External subtitles" = an ALREADY TRANSLATED file: selecting it skips extraction and translation.
 - A source subtitle whose language tag matches the target language skips translation (and the
   API-config requirement) automatically — `config.same_lang` handles 639-2 B/T variants; `und` never matches.
